@@ -223,10 +223,11 @@ interface FaceLandmarks {
   rightEar: Point;
   // ... hasta ~30 puntos nombrados en Fase 1.
 
-  // Array crudo completo con los 468 puntos que devuelve MediaPipe.
-  // IMPORTANTE: Diego necesita acceso a los 468 puntos para proyectos futuros.
+  // Array crudo completo con los 478 puntos que devuelve MediaPipe
+  // (468 base + 10 de iris con refinamiento activo, ver D16).
+  // IMPORTANTE: Diego necesita acceso a estos puntos para proyectos futuros.
   // Este array debe estar SIEMPRE disponible.
-  raw: Point[];  // longitud = 468
+  raw: Point[];  // longitud = 478
 }
 
 interface BodyLandmarks {
