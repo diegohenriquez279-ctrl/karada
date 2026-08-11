@@ -223,7 +223,7 @@ export type HandSide = 'left' | 'right';
  * Este mapa alimenta el `TypedEventEmitter` para dar autocompletado y
  * verificación de tipos por nombre de evento.
  */
-export interface KaradaEvents {
+export type KaradaEvents = {
   ready: void;
   frame: Skeleton;
   error: KaradaError;
