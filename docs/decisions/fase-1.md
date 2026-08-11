@@ -55,9 +55,12 @@ Este subset cierra la pregunta abierta #1 del brief.
 ## Fase 1.B — Cámara y MediaPipe
 
 ### D7. Carga de MediaPipe
-- Paquete `@mediapipe/holistic` desde npm.
-- Assets `.wasm` y `.tflite` descargados desde CDN de Google al vuelo.
-- **Deuda técnica documentada:** apps sin internet fallarán en primer arranque. Revisitar en 1.0.0 para ofrecer opción de auto-hospedar.
+
+*Actualizada en D24: se migra de `@mediapipe/holistic` (legacy) a `@mediapipe/tasks-vision` con composición de tres landmarkers. Los detalles vigentes viven en D24. Este bloque se conserva como registro histórico del punto de partida.*
+
+- (Original) Paquete `@mediapipe/holistic` desde npm.
+- (Original) Assets `.wasm` y `.tflite` descargados desde CDN de Google al vuelo.
+- **Deuda técnica documentada:** apps sin internet fallarán en primer arranque. Revisitar en 1.0.0 para ofrecer opción de auto-hospedar. (Sigue vigente bajo D24, ahora con URLs distintas.)
 
 ### D8. Umbral de confidence para manos
 - Si confianza promedio de los 21 puntos de una mano < **0.5**, la mano se reporta como `null`.
@@ -160,6 +163,43 @@ Este subset cierra la pregunta abierta #1 del brief.
 - `buildSkeleton` en el núcleo sigue retornando `Skeleton | null` (D18); el emisor de eventos filtra los `null`.
 - Razón: el estado "sin persona" será cubierto en Fase 2 por los eventos derivados `personDetected` y `personLost`. Emitir `null` en `frame` obligaría a chequeos defensivos que serán redundantes.
 - Decisión reversible: agregar `null` al union en el futuro es cambio compatible; quitarlo no lo sería.
+
+---
+
+## Decisiones tomadas al cerrar Fase 1.A y abrir Fase 1.B (D22–D25)
+
+### D22. Alcance visual de Fase 1.B
+- 1.B cierra con página HTML mínima que muestra el video de la cámara y loguea el `Skeleton` recibido. **No dibuja landmarks en canvas.**
+- Ese dibujo pertenece a 1.C (demo pulido).
+- Para no saturar la consola, el log del skeleton se throttlea a 1/segundo, y el último frame se expone en `window.__lastSkeleton` para inspección manual desde DevTools.
+
+### D23. Ubicación de la página de prueba de 1.B
+- La página vive en **`scratch/`** en la raíz del repo (por ejemplo `scratch/1b-smoke.html` + su `main.ts`).
+- No en `demo/`: `demo/` está reservado para el demo pulido de 1.C y mezclar ambos confunde intención.
+- `scratch/` queda commiteado en git como referencia para pruebas de humo futuras (patrón que se repetirá en 1.B de Fase 3 con video grabado).
+- El paquete NPM se protege con `"files": ["dist", "README.md", "LICENSE", "NOTICE"]` en `package.json`. Whitelist explícita: solo eso se publica. `scratch/`, `src/`, `tests/`, `demo/`, `docs/` quedan fuera del tarball automáticamente.
+
+### D24. Migración a `@mediapipe/tasks-vision` con composición de tres landmarkers
+- **D7 queda superada.** Se reemplaza el paquete `@mediapipe/holistic` (legacy según Google) por `@mediapipe/tasks-vision` (>=0.10.35).
+- Dentro de Tasks, se descarta `HolisticLandmarker` unificado y se adopta **composición**: `FaceLandmarker` + `PoseLandmarker` + `HandLandmarker` ejecutándose en paralelo por cada frame.
+- **Razón principal:** `HolisticLandmarker` unificado entrega solo 468 face landmarks (sin iris), incompatible con D16 (478 con iris en índices 468/473). `FaceLandmarker` standalone sí entrega los 478.
+- **Razones secundarias:**
+  - Alinea con `KaradaOptions.track`: apagar `face`/`body`/`hands` en la config no carga el landmarker correspondiente. Ahorro real de RAM/CPU cuando el usuario lo pide.
+  - `quality: 'fast' | 'balanced' | 'accurate'` puede mapear a variantes distintas por landmarker (por ejemplo, pose lite vs heavy), imposible con el unificado.
+  - Sustituir un modelo en Fase 5 (por ejemplo, cambiar pose por YOLO) se hace sin tocar los otros dos.
+- **Costos aceptados:** ~3× RAM/CPU respecto al unificado, tres bundles `.task` a descargar en primer arranque. Mitigación por parte del usuario: apagar módulos vía `track` y usar `quality: 'fast'` en hardware débil.
+- **Índices que se preservan sin cambios:**
+  - Face 478, iris en 468/473 (D16).
+  - Pose 33, `leftHeel = 29`, `rightHeel = 30`, `leftFootIndex = 31`, `rightFootIndex = 32` (D17).
+  - Hand 21 por mano, topología estándar (wrist=0, thumb 1–4, index 5–8, middle 9–12, ring 13–16, pinky 17–20).
+- **Assets:** `FilesetResolver.forVisionTasks(wasmUrl)` + `Landmarker.createFromModelPath(fileset, taskUrl)`. Wasm desde jsdelivr, modelos `.task` desde `storage.googleapis.com/mediapipe-models/…`. La deuda técnica de "sin internet no arranca en primer uso" documentada en D7 se mantiene igual, con nuevas URLs. Revisitar en 1.0.0.
+- **Puerta de escape:** si en 1.C se mide que la composición es inviable en hardware objetivo, se puede introducir un adaptador alternativo con `HolisticLandmarker` unificado y aceptar renunciar a iris ahí; el contrato público del núcleo no cambia.
+
+### D25. Detalle de timestamp en el loop de detección
+- Confirmación de la interpretación de D10: `requestVideoFrameCallback` dispara → se llama `detectForVideo(video, timestamp)` de cada landmarker → resultados síncronos → `buildSkeleton` → si retorna `Skeleton`, se emite `frame`.
+- `requestVideoFrameCallback` entrega `metadata.mediaTime` en segundos; `detectForVideo` espera timestamp en **microsegundos monotónicamente crecientes**. Conversión oficial: `Math.round(metadata.mediaTime * 1_000_000)`.
+- En composición (D24), los tres landmarkers reciben el **mismo timestamp** por frame. Sincronía garantizada sin lógica adicional.
+- Fallback a `requestAnimationFrame` (definido en D10): usar `performance.now() * 1000` como timestamp, con la misma restricción de monotonicidad.
 
 ---
 
