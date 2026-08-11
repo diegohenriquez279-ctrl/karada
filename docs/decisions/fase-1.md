@@ -113,3 +113,36 @@ Este subset cierra la pregunta abierta #1 del brief.
 - Elección de filtro de suavizado → Fase 2.C.
 - Estrategia de migración a monorepo → Fase 4.A.
 - Modelo alternativo a MediaPipe → Fase 5.A.
+
+---
+
+## Decisiones tomadas durante la implementación de 1.A (D16–D20)
+
+### D16. Refinamiento de iris → malla de 478 puntos (aprobado por Diego)
+- D4 pide `leftIris`/`rightIris`, pero los iris **no existen** en los 468 puntos base de MediaPipe Face Mesh: solo aparecen con el refinamiento de iris activo (`refineFaceLandmarks`), que sube la malla a **478 puntos** (468 base + 10 de iris).
+- Índices: `rightIris` = 468, `leftIris` = 473 (centros).
+- Consecuencia: `FaceLandmarks.raw` tiene longitud **478**, no 468.
+- **Acción pendiente:** actualizar el brief §8 (que aún dice `raw` length = 468) en sus dos ubicaciones (conocimiento del Proyecto + `CLAUDE.md`).
+- El adaptador web (1.B) debe activar el refinamiento de iris.
+
+### D17. `BodyLandmarks` expone `raw` (33 puntos) además de las 12 nombradas
+- Por consistencia con la cara ("nada se oculta"): se nombran las 12 articulaciones mayores y se expone `raw: Point[]` con los 33 puntos de MediaPipe Pose.
+- Alternativa descartada: nombrar los 33 puntos (superficie pública más grande y rígida).
+
+### D18. `buildSkeleton()` devuelve `Skeleton | null`
+- Los tipos exigen `face` y `body` siempre presentes, pero cuando no hay persona no existen. En vez de inventar puntos vacíos, la ausencia de persona se representa devolviendo `null`.
+- "No hay persona" = `face` o `pose` vacíos en la entrada cruda.
+- Implica que `Karada.getFrame()` también será `Skeleton | null`.
+- Alimenta el futuro evento `personLost` (Fase 2).
+
+### D19. Convención de lados anatómica
+- `left`/`right` en todos los landmarks nombrados = lado **anatómico del sujeto**, no el lado de la imagen. El flag `mirror` (D9) solo voltea coordenadas, nunca renombra puntos.
+- Los ~10 índices de contorno/orejas/sien son elecciones de diseño (la malla no cubre orejas/sienes reales); documentados en `landmarks.ts`.
+
+### D20. TypeScript fijado a la línea 5.x
+- `npm install` trajo TypeScript 7.0.2 (port nativo), cuya API rompe la generación de `.d.ts` de tsup (vía `rollup-plugin-dts`).
+- Se fija `typescript@^5` (5.9.3). Soporta todos los flags de D2 y produce ESM+CJS+dts sin errores.
+- Revisitar cuando tsup/rollup-plugin-dts soporten TS 7.
+
+### Nota de implementación: `on`/`off` funcionales en el stub
+- La clase `Karada` de 1.A es un stub, pero `on`/`off` ya delegan en el emisor interno (operación pura, sin cámara). Solo `start`/`stop`/`getFrame` lanzan error hasta 1.B. Permite registrar listeners antes de `start()`.
