@@ -25,15 +25,17 @@ Toda decisión aquí es vinculante para implementación. Cambios requieren chat 
 - **No exportar** núcleo ni adaptadores directamente en Fase 1.
 - Razón: superficie API pequeña = libertad de refactorizar sin romper usuarios.
 
-### D4. Subset de landmarks de cara nombrados (32 puntos)
+### D4. Subset de landmarks de cara nombrados (33 puntos)
 
-Organización semántica del subset accesible por nombre. El array `raw: Point[]` con los 468 puntos sigue siempre disponible.
+*Actualizada en D19: se agregó `rightTemple` por simetría con `leftTemple`. Total pasa de 32 a 33.*
+
+Organización semántica del subset accesible por nombre. El array `raw: Point[]` con los 478 puntos (ver D16) sigue siempre disponible.
 
 - **Nariz (3):** `noseTip`, `noseBridge`, `noseBottom`
 - **Ojos (8):** `leftEyeInner`, `leftEyeOuter`, `leftEyeTop`, `leftEyeBottom`, `rightEyeInner`, `rightEyeOuter`, `rightEyeTop`, `rightEyeBottom`
 - **Cejas (4):** `leftEyebrowInner`, `leftEyebrowOuter`, `rightEyebrowInner`, `rightEyebrowOuter`
 - **Boca (6):** `mouthLeft`, `mouthRight`, `upperLipTop`, `upperLipBottom`, `lowerLipTop`, `lowerLipBottom`
-- **Contorno (7):** `chin`, `leftJaw`, `rightJaw`, `foreheadCenter`, `leftCheek`, `rightCheek`, `leftTemple`
+- **Contorno (8):** `chin`, `leftJaw`, `rightJaw`, `foreheadCenter`, `leftCheek`, `rightCheek`, `leftTemple`, `rightTemple`
 - **Orejas (2):** `leftEar`, `rightEar`
 - **Extras (2):** `leftIris`, `rightIris` (útiles para eye-tracking futuro).
 
@@ -125,9 +127,13 @@ Este subset cierra la pregunta abierta #1 del brief.
 - **Acción pendiente:** actualizar el brief §8 (que aún dice `raw` length = 468) en sus dos ubicaciones (conocimiento del Proyecto + `CLAUDE.md`).
 - El adaptador web (1.B) debe activar el refinamiento de iris.
 
-### D17. `BodyLandmarks` expone `raw` (33 puntos) además de las 12 nombradas
-- Por consistencia con la cara ("nada se oculta"): se nombran las 12 articulaciones mayores y se expone `raw: Point[]` con los 33 puntos de MediaPipe Pose.
-- Alternativa descartada: nombrar los 33 puntos (superficie pública más grande y rígida).
+### D17. Contrato de cuerpo: nombres semánticos, sin array raw
+
+- `BodyLandmarks` **no expone `raw: Point[]`**. Se descartó la simetría con `FaceLandmarks` por diseño.
+- Razón: de los 33 puntos que devuelve MediaPipe Pose, 21 son duplicados de cara y manos (ya expuestos con más detalle en sus regiones), y solo 4 son únicos: talones y puntas de pie.
+- Esos 4 se agregan al subset nombrado: `leftHeel`, `rightHeel`, `leftFootIndex`, `rightFootIndex`.
+- Subset de cuerpo pasa de 12 a 16 landmarks. Reflejado en brief §8.
+- Índices oficiales de MediaPipe Pose: `leftHeel = 29`, `rightHeel = 30`, `leftFootIndex = 31`, `rightFootIndex = 32`.
 
 ### D18. `buildSkeleton()` devuelve `Skeleton | null`
 - Los tipos exigen `face` y `body` siempre presentes, pero cuando no hay persona no existen. En vez de inventar puntos vacíos, la ausencia de persona se representa devolviendo `null`.
@@ -154,3 +160,9 @@ Este subset cierra la pregunta abierta #1 del brief.
 - `buildSkeleton` en el núcleo sigue retornando `Skeleton | null` (D18); el emisor de eventos filtra los `null`.
 - Razón: el estado "sin persona" será cubierto en Fase 2 por los eventos derivados `personDetected` y `personLost`. Emitir `null` en `frame` obligaría a chequeos defensivos que serán redundantes.
 - Decisión reversible: agregar `null` al union en el futuro es cambio compatible; quitarlo no lo sería.
+
+---
+
+## Sobre este documento
+
+Este archivo funciona como **registro vivo**: cuando una decisión posterior modifica una anterior, la anterior se edita para reflejar el estado actual, marcada con una nota "Actualizada en DXX". La historia cronológica completa vive en el historial de git.
