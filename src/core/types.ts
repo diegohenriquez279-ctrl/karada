@@ -30,7 +30,7 @@ export interface Point {
 // ---------------------------------------------------------------------------
 
 /**
- * Subset de 32 landmarks de cara nombrados semánticamente (decisión D4).
+ * Subset de 33 landmarks de cara nombrados semánticamente (decisión D4 + D19).
  *
  * Filosofía: los nombres son para el uso diario; el array `raw` da acceso
  * total a la malla completa para casos avanzados. Nada se oculta.
@@ -69,7 +69,7 @@ export interface FaceLandmarks {
   lowerLipTop: Point;
   lowerLipBottom: Point;
 
-  // Contorno (7)
+  // Contorno (8)
   chin: Point;
   leftJaw: Point;
   rightJaw: Point;
@@ -77,6 +77,7 @@ export interface FaceLandmarks {
   leftCheek: Point;
   rightCheek: Point;
   leftTemple: Point;
+  rightTemple: Point;
 
   // Orejas (2)
   leftEar: Point;
@@ -102,13 +103,12 @@ export interface FaceLandmarks {
 // ---------------------------------------------------------------------------
 
 /**
- * Landmarks de cuerpo (pose). Subset nombrado de las articulaciones mayores
- * más el array `raw` con los 33 puntos completos de MediaPipe Pose.
+ * Landmarks de cuerpo (pose): 16 puntos nombrados semánticamente (D17).
  *
- * Nota de diseño (propuesta D17, pendiente de confirmar): se nombran las 12
- * articulaciones principales y se expone `raw` para los 33 puntos, igual que
- * en la cara. Alternativa sería nombrar los 33; se eligió el subset + raw para
- * mantener la superficie pública pequeña sin ocultar datos.
+ * Nota de diseño: a diferencia de la cara, `BodyLandmarks` NO expone un array
+ * `raw`. De los 33 puntos de MediaPipe Pose, 21 son duplicados de cara y manos
+ * (ya expuestos con más detalle en sus regiones). Los 4 únicos puntos que no
+ * están en cara ni manos —talones y puntas de pie— se nombran directamente.
  */
 export interface BodyLandmarks {
   leftShoulder: Point;
@@ -123,9 +123,10 @@ export interface BodyLandmarks {
   rightKnee: Point;
   leftAnkle: Point;
   rightAnkle: Point;
-
-  /** Los 33 puntos completos de MediaPipe Pose. */
-  raw: Point[];
+  leftHeel: Point;
+  rightHeel: Point;
+  leftFootIndex: Point;
+  rightFootIndex: Point;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,6 +226,8 @@ export type HandSide = 'left' | 'right';
  */
 export type KaradaEvents = {
   ready: void;
+  // `frame` se emite SOLO cuando hay Skeleton real; nunca con null (D21).
+  // El estado "sin persona" lo cubren personDetected/personLost (Fase 2).
   frame: Skeleton;
   error: KaradaError;
   personDetected: void;

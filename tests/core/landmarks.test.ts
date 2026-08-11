@@ -9,7 +9,7 @@ const EXPECTED_FACE_NAMES = [
   'rightEyeInner', 'rightEyeOuter', 'rightEyeTop', 'rightEyeBottom',
   'leftEyebrowInner', 'leftEyebrowOuter', 'rightEyebrowInner', 'rightEyebrowOuter',
   'mouthLeft', 'mouthRight', 'upperLipTop', 'upperLipBottom', 'lowerLipTop', 'lowerLipBottom',
-  'chin', 'leftJaw', 'rightJaw', 'foreheadCenter', 'leftCheek', 'rightCheek', 'leftTemple',
+  'chin', 'leftJaw', 'rightJaw', 'foreheadCenter', 'leftCheek', 'rightCheek', 'leftTemple', 'rightTemple',
   'leftEar', 'rightEar',
   'leftIris', 'rightIris',
 ] as const;
@@ -21,8 +21,8 @@ describe('FACE_LANDMARK_INDICES', () => {
   const names = Object.keys(FACE_LANDMARK_INDICES);
   const indices = Object.values(FACE_LANDMARK_INDICES);
 
-  it('tiene exactamente 32 nombres', () => {
-    expect(names).toHaveLength(32);
+  it('tiene exactamente 33 nombres', () => {
+    expect(names).toHaveLength(33);
   });
 
   it('contiene exactamente los nombres de D4 (sin faltantes ni extras)', () => {

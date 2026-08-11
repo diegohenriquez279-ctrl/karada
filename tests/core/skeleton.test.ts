@@ -25,7 +25,6 @@ describe('buildSkeleton', () => {
   it('conserva la malla cruda completa de la cara (478 con iris)', () => {
     const skeleton = buildSkeleton(validFrame as RawFrame);
     expect(skeleton?.face.raw).toHaveLength(478);
-    expect(skeleton?.body.raw).toHaveLength(33);
   });
 
   it('devuelve null en una mano cuya confianza promedio es baja (D8)', () => {
@@ -55,11 +54,12 @@ describe('buildSkeleton', () => {
       expect(face.rightIris.normalized.x).toBe(FACE_LANDMARK_INDICES.rightIris);
     });
 
-    it('cuerpo: cada articulación referencia la fila esperada', () => {
+    it('cuerpo: cada articulación (incluidos pies) referencia la fila esperada', () => {
       const body = skeleton!.body;
       expect(body.leftShoulder.normalized.x).toBe(POSE_LANDMARK_INDICES.leftShoulder);
       expect(body.rightAnkle.normalized.x).toBe(POSE_LANDMARK_INDICES.rightAnkle);
-      expect(body.leftShoulder).toBe(body.raw[POSE_LANDMARK_INDICES.leftShoulder]);
+      expect(body.leftHeel.normalized.x).toBe(POSE_LANDMARK_INDICES.leftHeel);
+      expect(body.rightFootIndex.normalized.x).toBe(POSE_LANDMARK_INDICES.rightFootIndex);
     });
 
     it('mano: la estructura por dedo referencia la fila esperada', () => {

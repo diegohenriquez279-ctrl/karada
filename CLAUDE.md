@@ -209,24 +209,60 @@ interface Point {
 }
 
 interface FaceLandmarks {
-  // Subset nombrado semánticamente (~30 puntos útiles).
-  nose: Point;
-  leftEye: Point;
-  rightEye: Point;
-  leftEyebrow: Point;
-  rightEyebrow: Point;
-  mouth: Point;
-  upperLip: Point;
-  lowerLip: Point;
+  // Subset de 33 landmarks nombrados semánticamente (D4 + D19).
+
+  // Nariz (3)
+  noseTip: Point;
+  noseBridge: Point;
+  noseBottom: Point;
+
+  // Ojos (8)
+  leftEyeInner: Point;
+  leftEyeOuter: Point;
+  leftEyeTop: Point;
+  leftEyeBottom: Point;
+  rightEyeInner: Point;
+  rightEyeOuter: Point;
+  rightEyeTop: Point;
+  rightEyeBottom: Point;
+
+  // Cejas (4)
+  leftEyebrowInner: Point;
+  leftEyebrowOuter: Point;
+  rightEyebrowInner: Point;
+  rightEyebrowOuter: Point;
+
+  // Boca (6)
+  mouthLeft: Point;
+  mouthRight: Point;
+  upperLipTop: Point;
+  upperLipBottom: Point;
+  lowerLipTop: Point;
+  lowerLipBottom: Point;
+
+  // Contorno (8)
   chin: Point;
+  leftJaw: Point;
+  rightJaw: Point;
+  foreheadCenter: Point;
+  leftCheek: Point;
+  rightCheek: Point;
+  leftTemple: Point;
+  rightTemple: Point;
+
+  // Orejas (2)
   leftEar: Point;
   rightEar: Point;
-  // ... hasta ~30 puntos nombrados en Fase 1.
 
-  // Array crudo completo con los 478 puntos que devuelve MediaPipe
-  // (468 base + 10 de iris con refinamiento activo, ver D16).
-  // IMPORTANTE: Diego necesita acceso a estos puntos para proyectos futuros.
-  // Este array debe estar SIEMPRE disponible.
+  // Extras (2)
+  leftIris: Point;
+  rightIris: Point;
+
+  /**
+   * Array crudo completo con los 478 puntos que devuelve
+   * MediaPipe Face Mesh con refineLandmarks: true.
+   * 478 = 468 base + 10 de iris (5 por iris). Siempre disponible.
+   */
   raw: Point[];  // longitud = 478
 }
 
@@ -243,7 +279,10 @@ interface BodyLandmarks {
   rightKnee: Point;
   leftAnkle: Point;
   rightAnkle: Point;
-  // ... 33 puntos totales
+  leftHeel: Point;
+  rightHeel: Point;
+  leftFootIndex: Point;
+  rightFootIndex: Point;
 }
 
 interface HandLandmarks {
@@ -257,6 +296,10 @@ interface HandLandmarks {
 }
 ```
 
+**Nota de diseño (`BodyLandmarks`):** no expone un array `raw`. De los 33 puntos que devuelve MediaPipe Pose, 21 son duplicados de cara y manos (ya expuestos con más detalle en sus regiones respectivas). Los 4 únicos puntos que no estarían en cara ni manos son talones y puntas de pie, y se exponen con nombre semántico. Ver D17.
+
+**Nota (`Skeleton`):** internamente `buildSkeleton` puede retornar `null` cuando no se detecta persona (D18). La API pública **no emite el evento `frame` con `null`**: cuando no hay persona, simplemente no se emite `frame` en ese ciclo. El estado "sin persona" se comunica en Fase 2 vía los eventos derivados `personDetected` y `personLost`. Ver D21.
+
 **Filosofía:** el subset nombrado es para uso diario; el array crudo es para uso avanzado. Nada se oculta.
 
 ---
@@ -265,7 +308,7 @@ interface HandLandmarks {
 
 **Esenciales:**
 - `ready`: cámara y modelos cargados.
-- `frame`: nuevo esqueleto disponible (30–60 veces/segundo).
+- `frame`: nuevo esqueleto disponible (30–60 veces/segundo). Solo se emite cuando hay persona detectada.
 - `error`: falla, con `type` y `message`.
 
 **Derivados (calculados internamente):**
@@ -308,6 +351,7 @@ Todas las fases están sub-seccionadas para testing incremental. Máximo tres su
 - Tests unitarios del núcleo (sin cámara ni navegador).
 - `LICENSE` (PolyForm Noncommercial 1.0.0) y `NOTICE` (Apache 2.0 de MediaPipe).
 - **Verificación:** compila, `npm test` pasa, `npm pack` genera tarball válido.
+- Verificado: 18+ tests unitarios del núcleo pasan; build ESM+CJS+dts limpio; `npm pack --dry-run` incluye solo lo publicable; grep confirma que el núcleo no importa MediaPipe ni APIs de navegador.
 
 **1.B — Cámara y MediaPipe**
 - `src/adapters/web/camera.ts`: encender/apagar cámara con permisos.
@@ -436,7 +480,6 @@ Ver "Instrucciones del proyecto" para detalle completo. Resumen:
 
 ## 14. Preguntas abiertas
 
-- Lista final del subset de ~30 landmarks de cara nombrados (a resolver en chat de decisiones al iniciar Fase 1.A).
 - Elección específica de filtro de suavizado en Fase 2.C (One-Euro candidato).
 - Estrategia exacta de migración a monorepo en Fase 4.A (workspaces de npm vs pnpm vs turborepo).
 - Elección de modelo alternativo en Fase 5.A (dependerá del paisaje del momento).

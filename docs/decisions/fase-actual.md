@@ -134,6 +134,7 @@ Este subset cierra la pregunta abierta #1 del brief.
 - "No hay persona" = `face` o `pose` vacíos en la entrada cruda.
 - Implica que `Karada.getFrame()` también será `Skeleton | null`.
 - Alimenta el futuro evento `personLost` (Fase 2).
+- Efecto sobre el evento `frame`: resuelto en D21.
 
 ### D19. Convención de lados anatómica
 - `left`/`right` en todos los landmarks nombrados = lado **anatómico del sujeto**, no el lado de la imagen. El flag `mirror` (D9) solo voltea coordenadas, nunca renombra puntos.
@@ -146,3 +147,10 @@ Este subset cierra la pregunta abierta #1 del brief.
 
 ### Nota de implementación: `on`/`off` funcionales en el stub
 - La clase `Karada` de 1.A es un stub, pero `on`/`off` ya delegan en el emisor interno (operación pura, sin cámara). Solo `start`/`stop`/`getFrame` lanzan error hasta 1.B. Permite registrar listeners antes de `start()`.
+
+### D21. Comportamiento del evento `frame`
+- `frame` se emite **solo cuando hay `Skeleton` real**. No se emite con `null`.
+- Firma pública: `(skeleton: Skeleton) => void`.
+- `buildSkeleton` en el núcleo sigue retornando `Skeleton | null` (D18); el emisor de eventos filtra los `null`.
+- Razón: el estado "sin persona" será cubierto en Fase 2 por los eventos derivados `personDetected` y `personLost`. Emitir `null` en `frame` obligaría a chequeos defensivos que serán redundantes.
+- Decisión reversible: agregar `null` al union en el futuro es cambio compatible; quitarlo no lo sería.

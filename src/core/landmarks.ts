@@ -56,6 +56,7 @@ export const FACE_LANDMARK_INDICES = {
   leftCheek: 425,
   rightCheek: 205,
   leftTemple: 284,
+  rightTemple: 54, // par simétrico de leftTemple (284) en la malla
 
   // Orejas (borde facial más cercano; la malla no cubre orejas reales)
   leftEar: 454,
@@ -68,7 +69,7 @@ export const FACE_LANDMARK_INDICES = {
 
 // ---------------------------------------------------------------------------
 // Cuerpo — 12 articulaciones mayores sobre MediaPipe Pose (33 puntos)
-// Índices canónicos y documentados por MediaPipe.
+// Índices canónicos y oficiales de MediaPipe Pose.
 // ---------------------------------------------------------------------------
 
 export const POSE_LANDMARK_INDICES = {
@@ -84,6 +85,10 @@ export const POSE_LANDMARK_INDICES = {
   rightKnee: 26,
   leftAnkle: 27,
   rightAnkle: 28,
+  leftHeel: 29,
+  rightHeel: 30,
+  leftFootIndex: 31,
+  rightFootIndex: 32,
 } as const;
 
 // ---------------------------------------------------------------------------

@@ -42,7 +42,7 @@ function averageConfidence(points: Point[]): number {
   return sum / points.length;
 }
 
-/** Construye el subset nombrado de cuerpo + el array `raw` con los 33 puntos. */
+/** Construye el subset nombrado de cuerpo (16 puntos, sin `raw`; ver D17). */
 export function buildBodyLandmarks(rawPose: Point[]): BodyLandmarks {
   const named = {} as { -readonly [K in keyof typeof POSE_LANDMARK_INDICES]: Point };
 
@@ -50,7 +50,7 @@ export function buildBodyLandmarks(rawPose: Point[]): BodyLandmarks {
     named[name as keyof typeof POSE_LANDMARK_INDICES] = pointAt(rawPose, index, name);
   }
 
-  return { ...named, raw: rawPose };
+  return named;
 }
 
 /** Construye la estructura de una mano (21 puntos agrupados por dedo). */
