@@ -448,9 +448,14 @@ Cuando se actualice, debe actualizarse en ambos lugares.
 
 ### Documento de decisiones por fase
 
-Cada fase tiene su archivo en `docs/decisions/fase-N.md`, actualizado al cerrar cada chat. Los prompts para Claude Code deben instruirle a leer:
+Cada fase tiene su archivo en `docs/decisions/fase-N.md`, actualizado al cerrar cada chat. Estos archivos son documentación histórica: nunca se borran ni se copian; se editan en su lugar cuando una decisión posterior modifica una anterior (registro vivo), con una nota indicando qué decisión la actualizó.
+
+Existe además `docs/decisions/fase-actual.md`, que es un **puntero de dos líneas** al archivo de la fase vigente. No contiene decisiones. Al cambiar de fase, se edita solo la línea de referencia.
+
+Los prompts para Claude Code deben instruirle a leer:
 1. `CLAUDE.md` (este brief).
-2. `docs/decisions/fase-actual.md`.
+2. `docs/decisions/fase-actual.md` (para saber qué fase está vigente).
+3. El archivo `fase-N.md` al que apunta `fase-actual.md`.
 
 ### Tipos de chats
 
@@ -466,7 +471,10 @@ Ver "Instrucciones del proyecto" para detalle completo. Resumen:
 ## 13. Instrucciones específicas para Claude Code
 
 1. **Empezar por Fase 1.A y no salir de ella** hasta que esté verde.
-2. **Leer siempre `CLAUDE.md` y `docs/decisions/fase-actual.md`** al iniciar cualquier sesión.
+2. **Leer siempre en este orden al iniciar cualquier sesión:**
+   a. `CLAUDE.md` (este brief).
+   b. `docs/decisions/fase-actual.md` (puntero de dos líneas que indica la fase vigente).
+   c. El archivo `docs/decisions/fase-N.md` al que apunta el puntero.
 3. **Pausar y consultar** antes de tomar decisiones técnicas grandes no cubiertas en el brief ni en las decisiones de la fase.
 4. **Explicar cada archivo nuevo** conforme lo crea.
 5. **Proponer mejoras** cuando detecte algo mejor, incluso si ya está decidido.
