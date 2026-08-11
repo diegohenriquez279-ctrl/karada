@@ -139,6 +139,9 @@ Este subset cierra la pregunta abierta #1 del brief.
 - Índices oficiales de MediaPipe Pose: `leftHeel = 29`, `rightHeel = 30`, `leftFootIndex = 31`, `rightFootIndex = 32`.
 
 ### D18. `buildSkeleton()` devuelve `Skeleton | null`
+
+*Actualizada en D30: la clase pública `Karada` aplica un comportamiento "stale" sobre `getFrame()` para el caso de uso de dibujado. El contrato del núcleo (que `buildSkeleton` puede retornar `null`) se mantiene intacto; solo se refina qué hace la API pública con ese `null`.*
+
 - Los tipos exigen `face` y `body` siempre presentes, pero cuando no hay persona no existen. En vez de inventar puntos vacíos, la ausencia de persona se representa devolviendo `null`.
 - "No hay persona" = `face` o `pose` vacíos en la entrada cruda.
 - Implica que `Karada.getFrame()` también será `Skeleton | null`.
@@ -200,6 +203,49 @@ Este subset cierra la pregunta abierta #1 del brief.
 - `requestVideoFrameCallback` entrega `metadata.mediaTime` en segundos; `detectForVideo` espera timestamp en **microsegundos monotónicamente crecientes**. Conversión oficial: `Math.round(metadata.mediaTime * 1_000_000)`.
 - En composición (D24), los tres landmarkers reciben el **mismo timestamp** por frame. Sincronía garantizada sin lógica adicional.
 - Fallback a `requestAnimationFrame` (definido en D10): usar `performance.now() * 1000` como timestamp, con la misma restricción de monotonicidad.
+
+---
+
+## Decisiones tomadas durante la implementación de 1.B (D26–D30)
+
+### D26. `tsconfig` para 1.B: `lib: ["ES2022", "DOM"]` y `stripInternal`
+- El adaptador web toca APIs del navegador (`getUserMedia`, `HTMLVideoElement`, `requestVideoFrameCallback`), por lo que el tsconfig raíz agrega `DOM` a `lib`. Sin eso el adaptador no compila.
+- La agnosticidad del núcleo (§4 del brief) **no** se sostiene por el `lib` de TypeScript. Se sostiene por el grep-check acordado en Fase 1.A: ningún archivo bajo `src/core/` puede importar MediaPipe ni APIs de plataforma. El check corre en el pipeline de verificación de cada sub-fase.
+- Se activa `stripInternal: true` para que los símbolos marcados con `/** @internal */` no aparezcan en los `.d.ts` públicos. Da margen para exponer helpers dentro del paquete sin comprometerlos como superficie API estable.
+- Revisitar en Fase 4.A: al migrar a monorepo, `@karada/core` tendrá su propio tsconfig sin `DOM`, forzando la agnosticidad a nivel de tipos. Mientras vivamos en un solo paquete, el grep-check es la garantía.
+
+### D27. Handedness: `SWAP_HANDEDNESS = false` en el adaptador web
+- MediaPipe Tasks asume que la imagen de entrada representa la escena vista por el sujeto (no espejada). El razonamiento inicial fue: como se pasa el frame crudo del `<video>`, hay que invertir la etiqueta `Handedness` para respetar D19 (nombres = lado anatómico del sujeto).
+- **Verificado empíricamente:** con `SWAP_HANDEDNESS = true`, levantar la mano derecha anatómica producía `leftHand` con datos y `rightHand` en `null`. El swap estaba causando la inversión, no corrigiéndola.
+- Causa: el stream de cámara `user` que llega al `<video>` ya viene espejado desde la captura. MediaPipe recibe una imagen ya espejada y su etiqueta interna coincide con el lado anatómico sin necesidad de invertir.
+- **Decisión:** `SWAP_HANDEDNESS = false` en `src/adapters/web/mediapipe.ts`.
+- **Ojo para Fase 3:** cuando el input sea video grabado (`.mp4`) o imagen estática, la imagen probablemente NO estará espejada, y la lógica del swap deberá reconsiderarse por fuente de input. El adaptador debería exponer el criterio de swap por fuente y no como constante global. Marcar como deuda técnica para 3.A.
+
+### D28. Semántica del campo `Point.confidence` en Fase 1.B
+Contrato público del campo `confidence` en cada región del `Skeleton`:
+
+- **`face.*.confidence` = `1` constante.** MediaPipe FaceLandmarker no entrega score por landmark facial. Se usa `1` como valor neutro para no romper el tipo `Point`. Un consumidor que necesite un score global de detección de cara deberá esperar a que Karada lo exponga aparte (Fase 2.C candidato).
+- **`body.*.confidence` = `visibility` real de MediaPipe Pose** (`landmark.visibility`, rango 0–1). Es el valor más útil disponible y refleja tanto oclusión como confianza del modelo.
+- **`hand.*.confidence` = score de handedness de la mano completa** (mismo valor para los 21 puntos de esa mano). Este es el score que alimenta la puerta de D8 (umbral 0.5 para reportar mano como `null`).
+
+Consecuencia deseable: un consumidor puede filtrar puntos poco confiables uniformemente con `if (p.confidence < X)` sin conocer la región, aunque la resolución de la señal difiere. Documentar en el README de 1.C.
+
+### D29. Scripts de npm: `dev` = Vite, `build:watch` = tsup watch
+- `npm run dev` levanta el **servidor de desarrollo con Vite** apuntando a `scratch/` (y en 1.C a `demo/`). Es el flujo diario para probar la librería en vivo con cámara real.
+- `npm run build` sigue siendo `tsup` una sola vez (ESM + CJS + tipos).
+- `npm run build:watch` = `tsup --watch`, para casos raros donde se quiera regenerar el bundle mientras se edita (por ejemplo, si un consumidor externo referencia `dist/` directamente).
+- Razón: durante desarrollo interactivo nadie consume `dist/`. Vite compila TypeScript al vuelo y sirve fuentes originales, lo cual es mucho más rápido que reconstruir todo el bundle por cada cambio.
+- Se conservan ambos porque cumplen roles distintos: Vite es el sandbox de prueba, tsup es la fábrica del paquete distribuible.
+
+### D30. `getFrame()` conserva el último `Skeleton` válido (stale)
+*Actualiza D18: la implicación "`Karada.getFrame()` también será `Skeleton | null`" se refina aquí.*
+
+- Comportamiento adoptado en 1.B: `getFrame()` devuelve el último `Skeleton` no-nulo que la librería haya producido. Solo devuelve `null` **antes de la primera detección** (durante la carga inicial o si nunca se detectó persona desde `start()`).
+- No devuelve `null` cuando desaparece la persona a mitad de sesión: sigue devolviendo el último `Skeleton` conocido.
+- **Razón:** para el caso de uso principal (dibujado del esqueleto en canvas) es lo que menos parpadea. Un frame perdido aislado no borra el dibujo. La lógica reactiva ("¿hay persona ahora mismo?") es un caso distinto y merece su canal propio.
+- **Fuente autoritativa del estado "hay/no hay persona"**: los eventos derivados `personDetected` y `personLost` de Fase 2.A. Consumidores que necesiten reaccionar a la ausencia deben suscribirse a `personLost`, no hacer polling de `getFrame() === null`.
+- **Efecto sobre D18:** `buildSkeleton()` en el núcleo sigue retornando `Skeleton | null` (contrato del núcleo intacto). La clase pública `Karada` es la que aplica el "stale": el emisor de eventos filtra los `null` de `frame` (D21) y `getFrame()` filtra los `null` conservando el anterior.
+- Decisión reversible: cambiar `getFrame()` a devolver `null` cuando no hay persona en el frame actual sería breaking en apps que asumen el comportamiento stale para dibujar. Si en Fase 2 medimos que la API es confusa, se puede introducir un método adicional (por ejemplo, `getLatestFrame()` vs `getCurrentFrame()`) sin romper el existente.
 
 ---
 

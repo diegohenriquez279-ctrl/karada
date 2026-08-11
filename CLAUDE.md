@@ -151,7 +151,7 @@ const skeleton = karada.getFrame();
 - `stop()`: apaga todo, libera cámara y memoria.
 - `pause()`: deja de emitir `frame`, mantiene todo cargado.
 - `resume()`: reanuda emisión.
-- `getFrame()`: devuelve el esqueleto más reciente (síncrono).
+- `getFrame()`: devuelve el esqueleto más reciente (síncrono). Aplica comportamiento "stale": conserva el último `Skeleton` válido cuando no hay persona en el frame actual, y solo devuelve `null` antes de la primera detección. Ver D30 en `docs/decisions/fase-1.md`.
 
 **Diferencia importante:** `stop → start` recarga todo (lento). `pause → resume` es instantáneo.
 
@@ -205,7 +205,7 @@ interface Skeleton {
 interface Point {
   normalized: { x: number; y: number; z: number };  // 0-1
   pixel:      { x: number; y: number; z: number };  // píxeles reales
-  confidence: number;                                // 0-1
+  confidence: number;                                // 0-1, semántica varía por región (ver D28)
 }
 
 interface FaceLandmarks {
