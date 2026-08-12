@@ -154,7 +154,7 @@ export function detectFrame(landmarkers: Landmarkers, config: DetectConfig): Raw
  * ⚠️ Decisión tomada sobre la marcha (sin cámara para verificar aquí). Si en el
  * smoke test en vivo las manos salen intercambiadas, poner SWAP en `false`.
  */
-const SWAP_HANDEDNESS = true;
+const SWAP_HANDEDNESS = false;
 
 function toPoint(lm: NormalizedLandmark, confidence: number, w: number, h: number, mirror: boolean): Point {
   const x = mirror ? 1 - lm.x : lm.x;
