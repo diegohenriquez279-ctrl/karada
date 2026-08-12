@@ -157,8 +157,8 @@ const skeleton = karada.getFrame();
 
 ### Estáticos
 
-- `Karada.isSupported()`: `boolean`. Verifica si el navegador soporta lo necesario.
-- `Karada.checkPermission()`: async. Verifica permiso de cámara sin instanciar.
+- `Karada.isSupported()`: `boolean`. Verifica si el navegador soporta lo necesario. *Se implementa en Fase 2.B (D32).*
+- `Karada.checkPermission()`: async. Verifica permiso de cámara sin instanciar. *Se implementa en Fase 2.B (D32).*
 
 ---
 
@@ -343,7 +343,7 @@ Todas las fases están sub-seccionadas para testing incremental. Máximo tres su
 
 ### Fase 1 — Núcleo web funcional (MVP publicable)
 
-**Meta:** publicar `karada@0.1.0` en NPM. Solo una persona (la más prominente).
+**Meta:** núcleo web funcional con demo pulido y desplegado. Solo una persona (la más prominente). Publicación en NPM pospuesta a Fase 3.B (ver D31 en `docs/decisions/fase-1.md`).
 
 **1.A — Cimientos y núcleo**
 - Setup: `package.json`, `tsconfig.json`, `tsup`, `vitest`, estructura de carpetas.
@@ -359,12 +359,14 @@ Todas las fases están sub-seccionadas para testing incremental. Máximo tres su
 - Integración: núcleo recibe puntos y arma el esqueleto.
 - **Verificación:** página HTML mínima que abre cámara y loguea el objeto skeleton.
 
-**1.C — Demo visible y publicación**
-- Clase `Karada` pública con `start`, `stop`, `getFrame`, `on('frame' | 'ready' | 'error')`.
-- Demo con canvas que dibuja el esqueleto en vivo.
-- README con instalación, ejemplo mínimo y GIF del demo.
-- Publicación de `karada@0.1.0` en NPM.
-- **Verificación:** instalar desde NPM en un proyecto nuevo y que funcione.
+**1.C — Demo pulido y deploy**
+- Clase `Karada` pública con `start`, `stop`, `getFrame`, `on/off` para `'frame' | 'ready' | 'error'`. `pause`/`resume` e `isSupported`/`checkPermission` se posponen a 2.B (D32).
+- Demo con HTML + CSS pulidos que dibuja el esqueleto sobre canvas (cara subset + cuerpo + manos, puntos + líneas). Ver D35 para alcance visual completo.
+- Eliminación de `scratch/` (D33): el demo pulido reemplaza al smoke test de 1.B.
+- Deploy del demo a GitHub Pages (D36). URL pública es artefacto principal de 1.C.
+- README raíz con título, GIF del demo, ejemplo de código del API pública, link al demo desplegado, avisos de licencia. Sin instrucciones de instalación NPM (D37).
+- **Publicación en NPM pospuesta a Fase 3.B (D31).** El paquete queda listo para publicar (build limpio, `npm pack --dry-run` válido) pero no se publica.
+- **Verificación:** demo desplegado corre sin errores en el navegador, `npm run build` produce `dist/` limpio, `npm pack --dry-run` genera tarball válido con la whitelist de `"files"`.
 
 ### Fase 2 — Eventos de azúcar y robustez
 
