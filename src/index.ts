@@ -8,6 +8,11 @@
 
 export { Karada } from './karada';
 
+// `KaradaError` es una CLASE (D34): se exporta como valor para que el consumidor
+// pueda hacer `err instanceof KaradaError`, no solo tiparse contra ella.
+export { KaradaError } from './core/errors';
+export type { KaradaErrorType } from './core/errors';
+
 export type {
   KaradaOptions,
   KaradaQuality,
@@ -17,8 +22,6 @@ export type {
   FaceLandmarks,
   BodyLandmarks,
   HandLandmarks,
-  KaradaError,
-  KaradaErrorType,
   KaradaEvents,
   HandSide,
 } from './core/types';

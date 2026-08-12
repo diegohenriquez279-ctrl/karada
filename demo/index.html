@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Karada — realtime body tracking</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <h1>Karada</h1>
+        <p class="tagline">Realtime unified body tracking · face + body + hands</p>
+      </header>
+
+      <!--
+        El <video> NO es estático: Karada crea su propio elemento interno y el
+        demo lo inserta aquí tras `ready` (karada.getVideoElement()). El <canvas>
+        se superpone; sus coordenadas ya vienen espejadas por Karada (D9/D35), por
+        eso el canvas no lleva transform y el video sí (scaleX(-1)).
+      -->
+      <div class="stage">
+        <canvas></canvas>
+        <div class="overlay" data-state="loading">Cargando modelos…</div>
+      </div>
+
+      <button class="btn-stop" type="button">Detener</button>
+
+      <footer>
+        Karada is licensed under
+        <a href="https://polyformproject.org/licenses/noncommercial/1.0.0/" target="_blank" rel="noopener"
+          >PolyForm Noncommercial 1.0.0</a
+        >. Uses
+        <a href="https://ai.google.dev/edge/mediapipe/solutions/vision" target="_blank" rel="noopener"
+          >MediaPipe Tasks Vision</a
+        >
+        (Apache 2.0). See
+        <a href="https://github.com/diegohenriquez279-ctrl/karada/blob/main/NOTICE" target="_blank" rel="noopener"
+          >NOTICE</a
+        >.
+      </footer>
+    </div>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

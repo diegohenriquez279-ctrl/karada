@@ -196,19 +196,16 @@ export interface KaradaOptions {
 // Errores
 // ---------------------------------------------------------------------------
 
-/** Categorías de error esperadas por Karada (brief §10). */
-export type KaradaErrorType =
-  | 'permission-denied'
-  | 'camera-not-found'
-  | 'camera-in-use'
-  | 'model-load-failed'
-  | 'not-supported';
+// El contrato de errores vive en `./errors` (clase `KaradaError` + union
+// `KaradaErrorType`, decisión D34). Se re-exporta desde aquí para conservar el
+// punto único de importación del núcleo: `camera.ts` (adaptador) importa
+// `KaradaErrorType` desde `../../core/types`, y `KaradaEvents.error` (abajo)
+// referencia la clase. La edición quirúrgica que trajo la clase aquí quedó
+// registrada al aprobar el Conflicto A del prompt de 1.C.
+import { KaradaError } from './errors';
 
-/** Forma del error entregado en el evento `error`. */
-export interface KaradaError {
-  type: KaradaErrorType;
-  message: string;
-}
+export { KaradaError };
+export type { KaradaErrorType } from './errors';
 
 // ---------------------------------------------------------------------------
 // Eventos

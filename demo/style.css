@@ -1,0 +1,158 @@
+/*
+ * Estilos del demo de Karada (Fase 1.C, D35).
+ * Paleta slate/cyan/pink fijada por el prompt de implementación.
+ */
+
+:root {
+  --bg: #0f172a; /* slate 900  — fondo de página            */
+  --surface: #1e293b; /* slate 800  — borde del stage             */
+  --text: #e2e8f0; /* slate 200  — texto principal            */
+  --text-dim: #94a3b8; /* slate 400  — texto secundario           */
+  --accent: #22d3ee; /* cyan 400   — líneas del esqueleto        */
+  --accent-hover: #67e8f9;
+  --point: #f472b6; /* pink 400   — puntos del esqueleto        */
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  line-height: 1.5;
+  display: flex;
+  justify-content: center;
+}
+
+.app {
+  width: 100%;
+  max-width: 960px;
+  padding: 2rem 1.25rem 3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+header {
+  text-align: center;
+}
+
+h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.tagline {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+/* --- Stage: video + canvas superpuestos ---------------------------------- */
+
+.stage {
+  position: relative;
+  width: 100%;
+  /* Aspecto de referencia hasta que el video inyectado imponga el suyo. */
+  aspect-ratio: 4 / 3;
+  background: #000;
+  border: 1px solid var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+/* El video interno de Karada, insertado por JS tras `ready`. */
+.stage video {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* mirror: true (default) → el video se voltea; el canvas NO (D9/D35). */
+  transform: scaleX(-1);
+}
+
+.stage canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  /* Encima del video, sin transform: los puntos ya vienen espejados. */
+  pointer-events: none;
+}
+
+/* --- Overlay de estados -------------------------------------------------- */
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1.5rem;
+  font-size: 1.25rem;
+  color: var(--text);
+  background: rgba(15, 23, 42, 0.85);
+  transition: opacity 0.2s ease;
+}
+
+/* En marcha: sin overlay. */
+.overlay[data-state='running'] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* --- Botón "Detener" ----------------------------------------------------- */
+
+.btn-stop {
+  align-self: center;
+  padding: 0.6rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--bg);
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.btn-stop:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+.btn-stop:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --- Footer -------------------------------------------------------------- */
+
+footer {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-dim);
+}
+
+footer a {
+  color: var(--text-dim);
+  text-decoration: underline;
+}
+
+footer a:hover {
+  color: var(--text);
+}

@@ -9,9 +9,9 @@
 
 import { buildSkeleton } from './core/skeleton';
 import { TypedEventEmitter } from './core/events';
+import { KaradaError } from './core/errors';
 import type {
   KaradaCamera,
-  KaradaError,
   KaradaEvents,
   KaradaOptions,
   KaradaQuality,
@@ -76,9 +76,10 @@ export class Karada {
 
   /**
    * @internal
-   * Devuelve el `<video>` interno para poder visualizarlo durante el desarrollo
-   * (páginas de `scratch/`). NO es API pública: no se exporta desde
-   * `src/index.ts` y desaparecerá o cambiará en Fase 2.
+   * Devuelve el `<video>` interno para poder visualizarlo (el demo de `demo/`
+   * lo inserta en el DOM tras `ready`). NO es API pública: no se exporta desde
+   * `src/index.ts`, se elide de los `.d.ts` por `stripInternal`, y desaparecerá
+   * o cambiará en Fase 2 (cuando se decida cómo exponer el video oficialmente).
    */
   getVideoElement(): HTMLVideoElement {
     if (this.video === null) {
@@ -92,6 +93,19 @@ export class Karada {
     if (this.running) return;
 
     try {
+      // Precheck de capacidades del entorno (D34). Sin getUserMedia ni
+      // WebAssembly no hay nada que intentar: fallamos rápido y tipado.
+      if (
+        typeof navigator === 'undefined' ||
+        navigator.mediaDevices?.getUserMedia === undefined ||
+        typeof WebAssembly === 'undefined'
+      ) {
+        throw new KaradaError(
+          'not-supported',
+          'Este entorno no soporta getUserMedia y/o WebAssembly, requeridos por Karada.',
+        );
+      }
+
       const video = document.createElement('video');
       video.autoplay = true;
       video.muted = true;
@@ -114,8 +128,10 @@ export class Karada {
     } catch (err) {
       this.cleanup();
       const kerr = toKaradaError(err);
+      // D34 + §4.3: se rechaza la promesa con el MISMO `KaradaError` que se
+      // emite en el evento `error`, no con un `Error` genérico envuelto.
       this.emitter.emit('error', kerr);
-      throw new Error(`[${kerr.type}] ${kerr.message}`);
+      throw kerr;
     }
   }
 
@@ -189,10 +205,19 @@ export class Karada {
   }
 }
 
-/** Convierte cualquier error en la forma tipada del brief §10. */
+/**
+ * Convierte cualquier throw en un `KaradaError` tipado (brief §10, D34).
+ * Ningún error nativo debe escapar de `start()` sin envolver.
+ */
 function toKaradaError(err: unknown): KaradaError {
-  if (err instanceof CameraError) return { type: err.type, message: err.message };
-  // Fuera de la cámara, el fallo típico en start() es la carga de modelos.
+  // Ya tipado (p. ej. el precheck 'not-supported'): se deja pasar tal cual.
+  if (err instanceof KaradaError) return err;
+  // Errores de cámara (getUserMedia) traen su `type` ya mapeado (D34).
+  if (err instanceof CameraError) {
+    return new KaradaError(err.type, err.message, { cause: err });
+  }
+  // Fuera de la cámara, el fallo típico en start() es la carga de modelos
+  // (FilesetResolver / createFromOptions). Fallback a 'model-load-failed'.
   const message = err instanceof Error ? err.message : String(err);
-  return { type: 'model-load-failed', message };
+  return new KaradaError('model-load-failed', message, { cause: err });
 }

@@ -1,16 +1,41 @@
 # Karada
 
-**Tracking corporal unificado en tiempo real: cara, cuerpo y manos en un solo esqueleto coherente.**
+**Realtime unified body tracking for the web — face, body, and both hands as a single, coherent skeleton.**
 
-> 🚧 **En construcción — Fase 1.A.**
-> El núcleo agnóstico y el andamiaje del proyecto están en marcha. La API pública,
-> el adaptador web con MediaPipe y el demo llegan en las siguientes sub-fases.
+[![License: PolyForm NC 1.0.0](https://img.shields.io/badge/license-PolyForm%20NC%201.0.0-blue)](./LICENSE)
+[![Code size](https://img.shields.io/github/languages/code-size/diegohenriquez279-ctrl/karada)](https://github.com/diegohenriquez279-ctrl/karada)
 
-## Licencia
+<!-- TODO: reemplazar por GIF real tras primer deploy -->
+![Karada demo](./docs/assets/demo.gif)
 
-Karada se distribuye bajo la **PolyForm Noncommercial License 1.0.0**: uso no
-comercial libre (aprendizaje, hobby, académico, proyectos personales); el uso
-comercial requiere permiso explícito del autor. Ver [`LICENSE`](./LICENSE).
+**Live demo:** https://diegohenriquez279-ctrl.github.io/karada/
 
-Incluye software de terceros bajo Apache License 2.0 (MediaPipe). Ver
-[`NOTICE`](./NOTICE).
+> Not yet published to NPM — coming in Phase 3. See the live demo above and clone the repo to try it locally.
+
+## Example
+
+```ts
+import { Karada } from 'karada';
+
+const karada = new Karada({
+  track: { face: true, body: true, hands: true },
+  quality: 'balanced',
+  camera: 'user',
+  mirror: true,
+});
+
+karada.on('ready', () => console.log('ready'));
+karada.on('frame', (skeleton) => {
+  if (skeleton.rightHand) drawHand(skeleton.rightHand);
+  drawBody(skeleton.body);
+});
+karada.on('error', (err) => console.error(err.type, err.message));
+
+await karada.start();
+```
+
+## License
+
+Karada is licensed under the [PolyForm Noncommercial License 1.0.0](./LICENSE). Non-commercial use is free; commercial use requires explicit permission from the author.
+
+Karada uses [MediaPipe Tasks Vision](https://developers.google.com/mediapipe/solutions/vision) under the Apache License 2.0. See [NOTICE](./NOTICE) for details.
