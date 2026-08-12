@@ -107,10 +107,15 @@ Este subset cierra la pregunta abierta #1 del brief.
 **Excluido de v0.1.0:** roadmap público, comparativas, guía de contribución.
 
 ### D15. Estrategia de versionado en Fase 1
-- 1.A cierra sin publicar (código local).
-- 1.B cierra sin publicar (código local + demo local funcionando).
-- 1.C publica `0.1.0` en NPM.
-- Sin versiones `0.0.x` intermedias públicas.
+
+*Actualizada en D31: la publicación en NPM se pospone a Fase 3.B. Este bloque se conserva como registro histórico del plan original.*
+
+- (Original) 1.A cierra sin publicar (código local).
+- (Original) 1.B cierra sin publicar (código local + demo local funcionando).
+- (Original) 1.C publica `0.1.0` en NPM.
+- (Original) Sin versiones `0.0.x` intermedias públicas.
+
+Estado vigente bajo D31: 1.A, 1.B y 1.C cierran sin publicar en NPM. La primera publicación pública será al cierre de Fase 3.B. La versión concreta con la que se publicará se decidirá en el chat de decisiones de Fase 3.B.
 
 ---
 
@@ -177,9 +182,12 @@ Este subset cierra la pregunta abierta #1 del brief.
 - Para no saturar la consola, el log del skeleton se throttlea a 1/segundo, y el último frame se expone en `window.__lastSkeleton` para inspección manual desde DevTools.
 
 ### D23. Ubicación de la página de prueba de 1.B
-- La página vive en **`scratch/`** en la raíz del repo (por ejemplo `scratch/1b-smoke.html` + su `main.ts`).
+
+*Actualizada en D33: al cerrar 1.C, la carpeta `scratch/` se elimina porque el demo pulido de `demo/` reemplaza al smoke test de 1.B. El patrón de `scratch/` para pruebas de humo se mantiene como convención y se recreará cuando en Fase 3.A haga falta un smoke test de video grabado antes de integrarlo al demo.*
+
+- (Vigente durante 1.B) La página vivió en **`scratch/`** en la raíz del repo (`scratch/1b-smoke.html` + su `main.ts`).
 - No en `demo/`: `demo/` está reservado para el demo pulido de 1.C y mezclar ambos confunde intención.
-- `scratch/` queda commiteado en git como referencia para pruebas de humo futuras (patrón que se repetirá en 1.B de Fase 3 con video grabado).
+- (Original) `scratch/` queda commiteado en git como referencia para pruebas de humo futuras (patrón que se repetirá en 1.B de Fase 3 con video grabado). Actualizado en D33: se elimina al cerrar 1.C y se recrea cuando haga falta.
 - El paquete NPM se protege con `"files": ["dist", "README.md", "LICENSE", "NOTICE"]` en `package.json`. Whitelist explícita: solo eso se publica. `scratch/`, `src/`, `tests/`, `demo/`, `docs/` quedan fuera del tarball automáticamente.
 
 ### D24. Migración a `@mediapipe/tasks-vision` con composición de tres landmarkers
@@ -246,6 +254,119 @@ Consecuencia deseable: un consumidor puede filtrar puntos poco confiables unifor
 - **Fuente autoritativa del estado "hay/no hay persona"**: los eventos derivados `personDetected` y `personLost` de Fase 2.A. Consumidores que necesiten reaccionar a la ausencia deben suscribirse a `personLost`, no hacer polling de `getFrame() === null`.
 - **Efecto sobre D18:** `buildSkeleton()` en el núcleo sigue retornando `Skeleton | null` (contrato del núcleo intacto). La clase pública `Karada` es la que aplica el "stale": el emisor de eventos filtra los `null` de `frame` (D21) y `getFrame()` filtra los `null` conservando el anterior.
 - Decisión reversible: cambiar `getFrame()` a devolver `null` cuando no hay persona en el frame actual sería breaking en apps que asumen el comportamiento stale para dibujar. Si en Fase 2 medimos que la API es confusa, se puede introducir un método adicional (por ejemplo, `getLatestFrame()` vs `getCurrentFrame()`) sin romper el existente.
+
+---
+
+---
+
+## Decisiones tomadas al abrir Fase 1.C (D31–D36)
+
+### D31. Publicación en NPM se pospone a Fase 3.B
+- **Actualiza D15.** Fase 1.C cierra sin publicar en NPM. La primera publicación pública será al cierre de Fase 3.B, cuando el paquete tenga soporte de video grabado + imágenes y una API de fuentes estable.
+- Razón: publicar `0.1.0` con solo cámara en vivo, sin video ni imagen, obligaría a gestionar breaking changes en `0.2.0` y `0.3.0` mientras la API todavía se está formando. Retrasar la publicación permite iterar sin compromiso público y lanzar en Fase 3.B con una superficie más completa.
+- **Riesgo del nombre `karada` en NPM aceptado.** D13 confirmó disponibilidad. Se acepta el riesgo (bajo) de que alguien tome el nombre entre 1.C y 3.B. Diego evalúa hacer un pre-release de reserva en Fase 2 si el riesgo se percibe mayor entonces; no hay compromiso.
+- **Verificación de 1.C ajustada:** el paquete debe quedar listo para publicar aunque no se publique. Concretamente: `npm run build` produce `dist/` limpio (ESM + CJS + dts), y `npm pack --dry-run` genera un tarball válido con la whitelist de `"files"` definida en D23.
+- La versión concreta con la que se publicará en Fase 3.B se decidirá en el chat de decisiones de esa sub-fase (candidatos: `0.3.0` respetando versionado incremental, o `0.1.0` considerando Fases 1–2 como pre-release privado).
+
+### D32. Alcance de la API pública en 1.C
+- Clase `Karada` expone en 1.C: `start()`, `stop()`, `getFrame()`, `on(event, cb)`, `off(event, cb)`.
+- Eventos suscribibles en 1.C: `ready`, `frame`, `error`.
+- **`pause()` y `resume()` se posponen a Fase 2.B** (respetando el fasing del brief §11). No se implementan siquiera como stubs en 1.C.
+- **`Karada.isSupported()` y `Karada.checkPermission()` se posponen a Fase 2.B** (mismo razonamiento). No se implementan en 1.C.
+- Ciclo `stop → start` **libera y recarga todo**: `stop()` cierra los tres landmarkers y el MediaStream; `start()` re-ejecuta la secuencia completa de inicialización de 1.B. Confirmación de la nota "recarga todo (lento)" del brief §6.
+- Listener automático de `beforeunload` **sí se incluye en 1.C** (brief §10): al descargar la página se llama `stop()` implícitamente para liberar la cámara. Costo bajo, evita bug real (cámara queda "en uso" si el usuario cierra la pestaña sin llamar `stop()`).
+
+### D33. Eliminación de `scratch/` al cerrar 1.C
+- **Actualiza D23.** La carpeta `scratch/` completa (incluyendo `1b-smoke.html`, su `main.ts` y cualquier otro archivo dentro) se elimina al iniciar 1.C. El demo pulido de `demo/` reemplaza su función.
+- No se conserva `.gitkeep` ni carpeta vacía. Recrear la carpeta en Fase 3.A cuando haga falta cuesta cero.
+- El patrón de `scratch/` para pruebas de humo se mantiene como convención documentada en D23. Solo se materializa cuando hay algo que probar.
+
+### D34. Tipos de error implementados en 1.C
+Los cinco tipos definidos en el brief §10 se implementan completos en 1.C. Union type `KaradaErrorType` queda estable desde `0.1.0` (o la versión con la que se publique). Mapeo a fuentes concretas:
+
+- `'permission-denied'` → `NotAllowedError` de `getUserMedia`.
+- `'camera-not-found'` → `NotFoundError` de `getUserMedia`.
+- `'camera-in-use'` → `NotReadableError` de `getUserMedia`.
+- `'model-load-failed'` → cualquier throw de `FilesetResolver.forVisionTasks()` o `createFromModelPath()` de los tres landmarkers.
+- `'not-supported'` → falta de `navigator.mediaDevices.getUserMedia` o de `WebAssembly` en el entorno de ejecución. Chequeo mínimo directo en `start()`, sin exponer `Karada.isSupported()` público (eso vive en 2.B — D32).
+
+Razón: agregar valores a un union type es cambio compatible; cambiar la semántica de los existentes no lo es. Salir con los cinco desde 1.C protege el contrato futuro.
+
+### D35. Demo pulido en `demo/` — alcance visual y funcional
+
+**Contenido dibujado sobre canvas:**
+- Cara: subset nombrado de 33 puntos (D4 + D19). No se dibujan los 478 puntos del array `raw` — se ven como nube ilegible.
+- Cuerpo: los 16 landmarks nombrados de `BodyLandmarks` (D17), con líneas de conexión anatómicas estándar.
+- Manos: los 21 puntos por mano con las conexiones estándar de MediaPipe (wrist a cada dedo, articulaciones intermedias).
+- Modo de dibujo: **puntos + líneas de conexión** en las tres regiones.
+
+**Estilo visual (HTML + CSS pulidos, no minimalista funcional):**
+- Layout centrado con container de `max-width` razonable para que en pantallas grandes no se estire absurdamente.
+- Video + canvas superpuestos, con proporción del video respetada (aspect ratio real detectado dinámicamente al iniciar la cámara).
+- Fondo de página con color intencional (no blanco puro, no negro puro).
+- Tipografía sistema con jerarquía clara: título del demo, subtítulo opcional, footer con créditos de licencia (PolyForm + MediaPipe Apache 2.0).
+- Botón "Detener" con estilo real, no default del navegador.
+- Responsivo mínimo: no debe romperse en un laptop pequeño (~1280×720). No se exige soporte móvil en 1.C.
+
+**Espejo del video:**
+- `<video>` lleva CSS `transform: scaleX(-1)` cuando `mirror: true` (default). El canvas **no** lleva el transform: las coordenadas ya vienen volteadas por Karada (D9), así que dibujar directamente sobre el canvas no espejado produce el resultado correcto sobre el video espejado.
+
+**Estados visuales (overlays sobre el video):**
+- "Cargando modelos…" mientras `start()` no ha resuelto.
+- "Permite el acceso a la cámara" si `start()` rechaza con `permission-denied`.
+- "Error: [mensaje]" para el resto de errores (formateado, no `alert()`).
+- Sin overlay cuando corre normalmente. Recordar D30: si desaparece la persona a mitad de sesión, se sigue dibujando el último esqueleto conocido (no se muestra overlay de "sin persona" — eso será canal aparte en Fase 2 vía eventos `personLost`).
+
+**Controles del demo:**
+- Autostart al cargar la página (facilita grabar GIF y hace el deploy inmediato).
+- Botón "Detener" visible que llama `stop()`. Al detenerse: canvas se congela en el último frame (efecto natural de D30 + no seguir llamando el loop), video se detiene, LED de cámara se apaga.
+- No hay botón "Iniciar" separado. Si el usuario quiere reiniciar, recarga la página. Simple y suficiente para 1.C.
+
+### D36. Deploy del demo a GitHub Pages
+- El demo pulido de `demo/` se despliega a **GitHub Pages** al cierre de 1.C. El deploy es artefacto público de 1.C, dado que no habrá publicación NPM (D31).
+- Razón de elegir GitHub Pages sobre Vercel: Diego ya tiene cuenta y experiencia con Pages; setup más rápido para él. Todo queda en un solo lugar (repo + deploy en GitHub).
+- **Costo asumido:** el sitio queda en `usuario.github.io/karada/` (subpath, no raíz de dominio), lo que exige configurar `base` en `vite.config.ts` para que los assets resuelvan correctamente. El prompt de implementación de 1.C debe incluir esta configuración.
+- **Deuda técnica documentada:** posible migración futura a **Vercel** por razones de mejor DX (redeploy automático más simple, URL sin subpath, dominio propio más limpio). Sin fecha ni compromiso. Se revisita si el flujo de Pages genera fricción real en Fase 2 o 3.
+- **README:** el demo desplegado se linkea desde el README raíz con URL absoluta. El GIF sigue siendo el hook visual principal (D14); el link al demo vivo es el llamado a la acción.
+
+### D37. README de 1.C — ajustes por posposición de publicación
+
+*Actualiza D14 en la parte de instalación.*
+
+- **Se elimina** la sección "Instalación (`npm install karada`)" del contenido mínimo de D14 mientras el paquete no esté publicado.
+- **Se agrega** una nota breve: "Not yet published to NPM — coming in Phase 3. See the live demo at [URL de GitHub Pages] and clone the repo to try locally."
+- **Se mantienen** los demás puntos de D14: título + tagline, badges (los de licencia y tamaño; el de npm version queda fuera hasta 3.B), GIF del demo funcionando, ejemplo mínimo (~20 líneas de código de uso, aunque no se pueda instalar todavía — sirve como documentación del API pública), enlace al demo desplegado (nuevo respecto a D14), aviso de licencia PolyForm + aviso de MediaPipe (Apache 2.0).
+- **Ubicación del GIF y assets del demo:** `docs/assets/` (patrón estándar). No se empaquetan en el tarball de NPM (la whitelist de `"files"` en D23 los excluye automáticamente); se referencian desde el README con path relativo al repo, que GitHub y NPM resuelven correctamente al renderizar el README.
+
+---
+
+## Decisiones tomadas durante la implementación de 1.C (D38–D39) y correcciones a 1.B
+
+### D38. `KaradaError` canónico en `src/core/errors.ts`, `types.ts` re-exporta
+- Al implementar el mapeo de errores de D34, se detectó que `src/core/types.ts` (archivo bajo regla no-tocar durante 1.C) ya definía `KaradaError` como `interface` estructural, mientras que la implementación de 1.C requería una clase concreta con `instanceof`, `name`, y soporte de `cause`.
+- Alternativas evaluadas: (a) coexistencia interface + clase, (b) solo interface, (c) editar `types.ts` quirúrgicamente.
+- **Decisión:** editar `types.ts` quirúrgicamente. Se elimina la `interface KaradaError` y el union `KaradaErrorType` de `types.ts`, y ambos se re-exportan desde `src/core/errors.ts`. La clase queda como única entidad canónica de error en toda la librería.
+- Razón: coexistencia deja al evento `error` tipado como interface aunque en runtime siempre reciba una clase, funcionando por casualidad y no por contrato; "solo interface" pierde `instanceof KaradaError` y el patrón `throw new KaradaError(type, msg, { cause })`.
+- Costo aceptado: se rompe puntualmente la regla "no-tocar" en un archivo, pero la edición **elimina** duplicación en lugar de crearla, y es la única forma de tener un contrato de error limpio en la API pública. Consumidores de `types.ts` (por ejemplo, `camera.ts`) siguen resolviendo `KaradaErrorType` sin cambios gracias al re-export.
+
+### D39. Contrato del demo con `getVideoElement()`
+- El adaptador web de 1.B ya gestiona su propio `<video>` interno y lo expone vía `getVideoElement()` (usado por el smoke test de `scratch/`). El prompt inicial de 1.C asumía por error que el HTML llevaría un `<video>` estático.
+- Alternativas evaluadas: (a) usar `getVideoElement()` en el demo (reutilización), (b) exponer video externo en la API pública (cambio de superficie).
+- **Decisión:** usar `getVideoElement()` en el demo. `demo/index.html` no contiene `<video>` estático; en el listener `'ready'` se obtiene el video interno de Karada, se le aplica la clase CSS del stage y `transform: scaleX(-1)` cuando `mirror: true`, y se inserta como primer hijo de `.stage` bajo el canvas.
+- Razón: la opción (b) contradiría D32 (superficie API de 1.C ya fijada) y la razón de existir del adaptador web (encapsular cámara + video + landmarkers). Si en el futuro tiene sentido inyectar un `<video>` externo, es en Fase 3.A junto con soporte de video grabado.
+- `getVideoElement()` sigue siendo `@internal` (elidido de los `.d.ts` por `stripInternal`). El demo puede usarlo porque importa desde `src/` directamente, no desde `dist/`. Los consumidores externos de la librería publicada no tendrán acceso a este método hasta que se decida (o no) promoverlo a API pública en una fase futura.
+
+### Corrección a D27 aplicada en 1.C
+- D27 fijó `SWAP_HANDEDNESS = false` en `src/adapters/web/mediapipe.ts`, pero el código de 1.B shippeó `true`. El bug se detectó al probar el demo pulido: las manos anatómicas salían intercambiadas.
+- Se corrigió a `false` durante 1.C (diff +1 −1 en una sola línea). D27 sigue vigente sin cambios de contenido; esta nota registra la corrección de la implementación.
+- Verificado empíricamente con runtime check: mano derecha anatómica ⇒ `rightHand !== null` y esqueleto sobre la mano correcta.
+
+### Runtime check de 1.C — comportamientos verificados vs. contrato
+Runtime check con cámara real ejecutado al cierre de 1.C. Todo el comportamiento observado es coherente con las decisiones vigentes; se documentan aquí los tres puntos donde el comportamiento correcto puede parecer inicialmente un bug:
+
+- **"Sin cara visible, el esqueleto se congela."** Consecuencia directa de D18 + D21 + D30: si `face` viene vacío, `buildSkeleton` retorna `null`, el evento `frame` no se emite, y `getFrame()` conserva el último `Skeleton` válido. Distinción "hay persona pero no la veo bien" vs "no hay nadie" se cubre en Fase 2.A con `personDetected` / `personLost`.
+- **Jitter visible del esqueleto.** MediaPipe entrega puntos crudos sin suavizado. Previsto explícitamente en el brief §11: filtro de suavizado (One-Euro candidato) se implementa en Fase 2.C. Iluminación frontal difusa mitiga pero no elimina.
+- **Botón "Detener" no reactivable.** D35 lo fija así: "Detener" es terminal, se recarga para reiniciar. `pause`/`resume` están pospuestos a Fase 2.B por D32.
 
 ---
 

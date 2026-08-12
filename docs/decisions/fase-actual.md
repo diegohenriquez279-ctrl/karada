@@ -1,6 +1,6 @@
 # Fase actual
 
-Fase 1. Ver [fase-1.md](./fase-1.md).
+Fase 2. Ver [fase-2.md](./fase-2.md).
 
 ---
 
