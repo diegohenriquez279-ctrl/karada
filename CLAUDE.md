@@ -89,6 +89,7 @@ karada/
 │   │   ├── types.ts
 │   │   ├── skeleton.ts
 │   │   ├── events.ts
+│   │   ├── errors.ts
 │   │   └── landmarks.ts
 │   │
 │   ├── adapters/
@@ -149,8 +150,8 @@ const skeleton = karada.getFrame();
 
 - `start()`: enciende cámara y modelos. Async.
 - `stop()`: apaga todo, libera cámara y memoria.
-- `pause()`: deja de emitir `frame`, mantiene todo cargado.
-- `resume()`: reanuda emisión.
+- `pause()`: deja de emitir `frame`, mantiene todo cargado. *Se implementa en Fase 2.B (D32).*
+- `resume()`: reanuda emisión. *Se implementa en Fase 2.B (D32).*
 - `getFrame()`: devuelve el esqueleto más reciente (síncrono). Aplica comportamiento "stale": conserva el último `Skeleton` válido cuando no hay persona en el frame actual, y solo devuelve `null` antes de la primera detección. Ver D30 en `docs/decisions/fase-1.md`.
 
 **Diferencia importante:** `stop → start` recarga todo (lento). `pause → resume` es instantáneo.

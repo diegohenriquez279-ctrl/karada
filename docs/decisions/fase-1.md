@@ -361,6 +361,15 @@ Razón: agregar valores a un union type es cambio compatible; cambiar la semánt
 - Se corrigió a `false` durante 1.C (diff +1 −1 en una sola línea). D27 sigue vigente sin cambios de contenido; esta nota registra la corrección de la implementación.
 - Verificado empíricamente con runtime check: mano derecha anatómica ⇒ `rightHand !== null` y esqueleto sobre la mano correcta.
 
+### D40. `maxFPS` shippeó funcional en 1.B — se acepta en Fase 1
+- El brief §7 declara `maxFPS?: number` como parte de `KaradaOptions` desde el diseño original.
+- D32 pospone `pause`/`resume`/`isSupported`/`checkPermission` a 2.B con la instrucción "no se implementan siquiera como stubs en 1.C". Sobre `maxFPS`, D32 solo lo enumera en la lista de Fase 2.B sin instrucción equivalente de "no implementar".
+- **Estado real:** el throttle de `maxFPS` shippeó **funcional** en 1.B (`karada.ts` filtra frames por delta de tiempo en `onTick`), con comentario en código que indica "gancho listo; Fase 2.B lo formaliza". Verificado durante auditoría pre-cierre de Fase 1.
+- Alternativas evaluadas: (a) aceptar el comportamiento vivo y documentar; (b) revertir el throttle hasta 2.B para respetar D32 al pie de la letra.
+- **Decisión:** aceptar (a). El tipo público ya obliga a que el campo exista, el comportamiento observado es correcto (sin `maxFPS` no hay límite, con valor N el loop respeta ~N FPS), y revertir para reimplementar en 2.B es pérdida neta.
+- **Efecto sobre D32:** D32 sigue vigente para `pause`/`resume`/`isSupported`/`checkPermission`, que efectivamente no existen en 1.C. Para `maxFPS`, el trabajo pendiente en 2.B se reduce a formalización: tests dedicados, documentación pública, validación de rango (rechazar valores ≤ 0 o > 120, por ejemplo), y cualquier interacción con `pause`/`resume` cuando esas lleguen.
+- Descubierto por Vía B/C de la auditoría pre-cierre de Fase 1; sin impacto en runtime check ni en el deploy.
+
 ### Runtime check de 1.C — comportamientos verificados vs. contrato
 Runtime check con cámara real ejecutado al cierre de 1.C. Todo el comportamiento observado es coherente con las decisiones vigentes; se documentan aquí los tres puntos donde el comportamiento correcto puede parecer inicialmente un bug:
 
