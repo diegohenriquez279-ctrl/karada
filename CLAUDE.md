@@ -150,16 +150,19 @@ const skeleton = karada.getFrame();
 
 - `start()`: enciende cámara y modelos. Async.
 - `stop()`: apaga todo, libera cámara y memoria.
-- `pause()`: deja de emitir `frame`, mantiene todo cargado. *Se implementa en Fase 2.B (D32).*
-- `resume()`: reanuda emisión. *Se implementa en Fase 2.B (D32).*
+- `pause()`: deja de emitir `frame`, mantiene todo cargado. Cancela rVFC y setea `videoTrack.enabled = false`. Congela el reloj de debounce de eventos derivados. *Implementado en Fase 2.B (D46).*
+- `resume()`: reanuda emisión. Restablece `videoTrack.enabled = true`, re-suscribe rVFC. Los modelos siguen cargados; instantáneo. *Implementado en Fase 2.B (D46).*
 - `getFrame()`: devuelve el esqueleto más reciente (síncrono). Aplica comportamiento "stale": conserva el último `Skeleton` válido cuando no hay persona en el frame actual, y solo devuelve `null` antes de la primera detección. Ver D30 en `docs/decisions/fase-1.md`.
+- `isPresent(): boolean` — indica si hay persona detectada en el frame actual (sin considerar comportamiento stale). *Implementado en Fase 2.A (D44).*
+- `getLastSeen(): number` — timestamp del último frame válido con persona detectada. *Implementado en Fase 2.A (D44).*
+- `setMaxFPS(value: number | undefined): void` — cambia el límite de FPS en runtime, con la misma validación que el constructor. *Implementado en Fase 2.B (D47).*
 
 **Diferencia importante:** `stop → start` recarga todo (lento). `pause → resume` es instantáneo.
 
 ### Estáticos
 
-- `Karada.isSupported()`: `boolean`. Verifica si el navegador soporta lo necesario. *Se implementa en Fase 2.B (D32).*
-- `Karada.checkPermission()`: async. Verifica permiso de cámara sin instanciar. *Se implementa en Fase 2.B (D32).*
+- `Karada.isSupported()`: síncrono, retorna `{ supported: boolean; missing: string[]; warnings: string[] }`. Verifica getUserMedia + WebAssembly + contexto seguro (required) y SIMD + rVFC (opcionales con warning). *Implementado en Fase 2.B (D48).*
+- `Karada.checkPermission()`: async, retorna `Promise<'granted'|'denied'|'prompt'|'unknown'>`. Usa Permissions API con fallback a `'unknown'`. Nunca dispara prompt. *Implementado en Fase 2.B (D49).*
 
 ---
 
@@ -175,7 +178,17 @@ interface KaradaOptions {
   quality?: 'fast' | 'balanced' | 'accurate';  // default: 'balanced'
   camera?: 'user' | 'environment' | string;    // default: 'user'
   mirror?: boolean;                             // default: true
-  maxFPS?: number;                              // default: sin límite
+  maxFPS?: number;                              // default: sin límite; rango válido [1, 120]
+  smoothing?:                                   // default: 'normal'
+    | boolean
+    | 'off' | 'light' | 'normal' | 'aggressive'
+    | SmoothingConfig;
+}
+
+interface SmoothingConfig {
+  face?:  { minCutoff: number; beta: number } | boolean;
+  body?:  { minCutoff: number; beta: number } | boolean;
+  hands?: { minCutoff: number; beta: number } | boolean;
 }
 ```
 
@@ -186,7 +199,8 @@ interface KaradaOptions {
   - `accurate`: PC potente
 - **`camera`**: `'user'` (frontal), `'environment'` (trasera), o `deviceId` específico.
 - **`mirror`**: útil para apps tipo espejo/probador (`true`); apagar para análisis (`false`).
-- **`maxFPS`**: limita frames para ahorrar batería o rendimiento en equipos débiles.
+- **`maxFPS`**: limita frames para ahorrar batería o rendimiento en equipos débiles. Rango válido `[1, 120]` o `undefined` (sin límite). Fuera de rango lanza `KaradaError` de tipo `'invalid-options'`. Modificable en runtime con `setMaxFPS()`. Ver D47.
+- **`smoothing`**: filtro One-Euro para reducir jitter. `'normal'` por default. Ver D51 en `docs/decisions/fase-2.md`.
 
 ---
 
@@ -312,11 +326,13 @@ interface HandLandmarks {
 - `frame`: nuevo esqueleto disponible (30–60 veces/segundo). Solo se emite cuando hay persona detectada.
 - `error`: falla, con `type` y `message`.
 
-**Derivados (calculados internamente):**
-- `personDetected`: aparece alguien después de que no había nadie.
-- `personLost`: todos los frames vienen sin persona detectada.
-- `handAppeared`: emite con `'left'` o `'right'`.
-- `handLost`: emite con `'left'` o `'right'`.
+**Derivados (implementados en Fase 2.A):**
+- `personDetected(skeleton)`: emite con el primer Skeleton válido cuando aparece alguien tras no haber nadie. Debounce: 0 ms (inmediato). Ver D41.
+- `personLost({lastSkeleton, timestamp})`: emite el último Skeleton conocido y el timestamp del último frame válido tras 500 ms de ausencia continua. Ver D41.
+- `handAppeared(side, hand)`: emite `'left'|'right'` + `HandLandmarks` tras 2 frames consecutivos por encima del umbral. Ver D42.
+- `handLost(side, {lastPosition, timestamp})`: emite `'left'|'right'` + última posición + timestamp tras 300 ms de ausencia continua. Ver D42.
+
+**Orden de emisión:** eventos de estado derivados se emiten **antes** que `frame` en un mismo tick ("estado antes que datos"). Ver D45.
 
 Todos suscribibles con `karada.on(evento, callback)` y desuscribibles con `karada.off(...)`.
 
@@ -330,6 +346,8 @@ Tipos de error esperados:
 - `'camera-in-use'`: cámara ocupada por otra aplicación.
 - `'model-load-failed'`: fallo al cargar MediaPipe.
 - `'not-supported'`: navegador sin capacidades requeridas.
+- `'invalid-options'`: opción de configuración inválida (ej. `maxFPS` fuera de rango). *Agregado en Fase 2.B (D50).*
+- `'invalid-state'`: operación en estado incorrecto (ej. `pause()` sin `start()`, doble `start()`). *Agregado en Fase 2.B (D50).*
 
 Comportamiento:
 - Si el usuario niega permiso: `start()` rechaza con `Error` de tipo `'permission-denied'`, y se emite evento `error`.
@@ -379,15 +397,19 @@ Todas las fases están sub-seccionadas para testing incremental. Máximo tres su
 - Tests de escenarios (persona entra/sale; mano entra/sale).
 
 **2.B — Ciclo de vida y errores**
-- `pause()`, `resume()`.
-- `maxFPS` en configuración.
-- `Karada.isSupported()`, `Karada.checkPermission()`.
-- Tipos de error tipados con union type.
+- `pause()` y `resume()`: cancelan/re-suscriben el loop, alternan `videoTrack.enabled`, congelan reloj de debounce. Ver D46.
+- `setMaxFPS()` para cambio en runtime; validación de rango `[1, 120]`. Ver D47.
+- `Karada.isSupported()` sync con objeto detallado (D48).
+- `Karada.checkPermission()` async con Permissions API y fallback a `'unknown'` (D49).
+- Union `KaradaErrorType` extendido con `'invalid-options'` e `'invalid-state'` (D50).
 
 **2.C — Suavizado y documentación**
-- Filtro opcional de suavizado (One-Euro candidato) para reducir temblor.
-- Documentación completa con ejemplos por caso de uso.
-- Publicación de `karada@0.2.0`.
+- Filtro One-Euro con 4 presets (`'off'|'light'|'normal'|'aggressive'`) + `SmoothingConfig` avanzado por región. Default `'normal'`. Ver D51.
+- README expandido (11 secciones) + JSDoc completo en inglés en toda la superficie pública. Ver D52.
+- Toggle de smoothing en el demo desplegado; re-deploy a GitHub Pages.
+- Tests unitarios del filtro (convergencia, suavizado, responsividad, reset).
+- **Publicación pospuesta a Fase 3.B (D31).** Cierre de 2.C: build limpio + `npm pack --dry-run` válido + demo actualizado. Sin tag de versión. Ver D53.
+- **Verificación:** demo con toggle funcional en GitHub Pages, `npm run build` limpio, `npm pack --dry-run` válido, todos los tests del filtro pasan.
 
 ### Fase 3 — Expansión de fuentes
 
@@ -491,6 +513,5 @@ Ver "Instrucciones del proyecto" para detalle completo. Resumen:
 
 ## 14. Preguntas abiertas
 
-- Elección específica de filtro de suavizado en Fase 2.C (One-Euro candidato).
 - Estrategia exacta de migración a monorepo en Fase 4.A (workspaces de npm vs pnpm vs turborepo).
 - Elección de modelo alternativo en Fase 5.A (dependerá del paisaje del momento).
