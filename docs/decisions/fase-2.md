@@ -239,6 +239,41 @@ interface SmoothingConfig {
 
 ---
 
+## Decisiones tomadas durante la implementación de 2.A (D54–D56)
+
+### D54. TypedEventEmitter pasa a firmas variádicas (tuplas de argumentos)
+
+Decisión emergente durante implementación de 2.A.
+
+Para soportar handAppeared(side, hand) y handLost(side, info) de D43 (dos argumentos, discriminador string primero), TypedEventEmitter se refactorizó de "un payload por evento" a "tupla de argumentos por evento". KaradaEvents ahora mapea evento → [args] (ready: [], frame: [Skeleton], handAppeared: [HandSide, HandLandmarks], etc.) y emit(event, ...args) es variádico.
+
+Retrocompatible en sitios de uso: listeners de 0 o 1 argumentos siguen tipando igual. El demo de 1.C y el evento frame no requirieron cambios.
+Breaking solo en el shape interno del tipo del mapa de eventos, que no era superficie pública.
+Se añadieron PersonLostInfo y HandLostInfo como tipos con nombre para los payloads-objeto de personLost y handLost (mejor legibilidad en el .d.ts público que interfaces anónimas).
+
+
+### D55. Lógica de eventos derivados como función pura en core/
+
+Decisión emergente durante implementación de 2.A. Ver también D26 sobre agnosticidad del núcleo.
+
+La lógica de debounce y emisión vive en src/core/derived-events.ts como función pura processTick(skeleton, now, state, config) → { emissions, nextState }, no en la clase Karada. El reloj entra como argumento (now: number), no se llama performance.now() desde el núcleo.
+
+Agnosticidad preservada: grep-check confirma que core/ no importa MediaPipe ni APIs de plataforma.
+Testeabilidad: los 10 escenarios de 2.A se testean sin cámara, sin timers y sin vi.useFakeTimers(), inyectando now directamente. 100% determinista.
+La clase Karada es delgada: llama a processTick, itera emissions en orden y persiste nextState. Traduce DerivedEmission[] a emit(...).
+Se añadió el método @internal ingest(skeleton, now) en la clase como punto de inyección para tests que requieren verificar el orden de emisión a nivel de emitter (escenario 8 de D45). Elidido del .d.ts público por stripInternal, siguiendo el patrón de getVideoElement() (D39).
+
+### D56. stop() también resetea el estado de eventos derivados
+
+Decisión emergente durante implementación de 2.A.
+
+Además del reset en start() (requerido por la especificación del algoritmo de 2.A), stop() restablece el estado derivado a createInitialState() por consistencia con lastFrame = null y con el contrato de "sesión terminada":
+
+Tras stop(): isPresent() retorna false, getLastSeen() retorna -1.
+No emite eventos sintéticos (nada de personLost al parar). stop() sigue siendo cierre abrupto por diseño.
+El reset en start() se mantiene como red de seguridad idempotente: si en el futuro se llega a un Karada sin stop() previo (por ejemplo, error a mitad de init), el arranque no arrastra estado.
+
+
 ## Sobre este documento
 
 Este archivo funciona como **registro vivo**, igual que `fase-1.md`: cuando una decisión posterior modifica una anterior, la anterior se edita para reflejar el estado actual, marcada con una nota "Actualizada en DXX". La historia cronológica completa vive en el historial de git.
