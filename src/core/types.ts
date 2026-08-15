@@ -190,6 +190,22 @@ export interface KaradaOptions {
   camera?: KaradaCamera;
   mirror?: boolean;
   maxFPS?: number;
+  /**
+   * Ajuste fino de los eventos derivados de Fase 2.A (`personLost`,
+   * `handAppeared`, `handLost`). Todos los campos son opcionales y usan los
+   * defaults de D41/D42 si se omiten.
+   *
+   * En Fase 2.A los valores fuera de rango se recortan silenciosamente (clamp).
+   * En Fase 2.B esto pasará a lanzar `KaradaError('invalid-options')` (D50).
+   */
+  events?: {
+    /** ms de ausencia continua antes de emitir `personLost`. Default 500. Rango [300, 600]. Fuera de rango: clamp silencioso en 2.A. */
+    personLostDebounceMs?: number;
+    /** frames consecutivos por encima del umbral antes de emitir `handAppeared`. Default 2. Rango [1, 5]. Fuera de rango: clamp silencioso en 2.A. */
+    handAppearedFrames?: number;
+    /** ms de ausencia continua por mano antes de emitir `handLost`. Default 300. Rango [100, 1000]. Fuera de rango: clamp silencioso en 2.A. */
+    handLostDebounceMs?: number;
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -214,21 +230,37 @@ export type { KaradaErrorType } from './errors';
 /** Lado de una mano, usado por `handAppeared` / `handLost`. */
 export type HandSide = 'left' | 'right';
 
+/** Payload de `personLost` (D43): último esqueleto conocido + su timestamp. */
+export interface PersonLostInfo {
+  lastSkeleton: Skeleton;
+  timestamp: number;
+}
+
+/** Payload de `handLost` (D43): última posición conocida de la mano + timestamp. */
+export interface HandLostInfo {
+  lastPosition: HandLandmarks;
+  timestamp: number;
+}
+
 /**
- * Mapa de eventos de Karada: nombre del evento → tipo de su payload.
- * `void` significa que el evento no lleva datos.
+ * Mapa de eventos de Karada: nombre del evento → tupla de argumentos con los
+ * que se invoca al listener. La tupla vacía `[]` significa que el evento no
+ * lleva datos.
  *
  * Este mapa alimenta el `TypedEventEmitter` para dar autocompletado y
- * verificación de tipos por nombre de evento.
+ * verificación de tipos por nombre de evento. Se usa tupla (y no un único
+ * payload) porque los eventos de mano llevan dos argumentos, con el
+ * discriminador `side` primero (D43).
  */
 export type KaradaEvents = {
-  ready: void;
+  ready: [];
   // `frame` se emite SOLO cuando hay Skeleton real; nunca con null (D21).
-  // El estado "sin persona" lo cubren personDetected/personLost (Fase 2).
-  frame: Skeleton;
-  error: KaradaError;
-  personDetected: void;
-  personLost: void;
-  handAppeared: HandSide;
-  handLost: HandSide;
-}
+  // El estado "sin persona" lo cubren personDetected/personLost (Fase 2.A).
+  frame: [Skeleton];
+  error: [KaradaError];
+  // Eventos derivados de Fase 2.A (D41–D43).
+  personDetected: [Skeleton];
+  personLost: [PersonLostInfo];
+  handAppeared: [HandSide, HandLandmarks];
+  handLost: [HandSide, HandLostInfo];
+};

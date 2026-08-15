@@ -10,6 +10,13 @@
 import { buildSkeleton } from './core/skeleton';
 import { TypedEventEmitter } from './core/events';
 import { KaradaError } from './core/errors';
+import {
+  createInitialState,
+  processTick,
+  type DerivedEmission,
+  type DerivedEventsConfig,
+  type DerivedEventsState,
+} from './core/derived-events';
 import type {
   KaradaCamera,
   KaradaEvents,
@@ -31,11 +38,21 @@ interface ResolvedKaradaOptions {
   maxFPS: number;
 }
 
-type Listener<K extends keyof KaradaEvents> = (payload: KaradaEvents[K]) => void;
+type Listener<K extends keyof KaradaEvents> = (...args: KaradaEvents[K]) => void;
+
+/** Recorta `value` al rango `[min, max]`, usando `fallback` si es `undefined`. */
+function clamp(value: number | undefined, fallback: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value ?? fallback));
+}
 
 export class Karada {
   private readonly emitter = new TypedEventEmitter<KaradaEvents>();
   private readonly options: ResolvedKaradaOptions;
+
+  /** Parámetros de debounce de eventos derivados, ya resueltos (D41–D42). */
+  private readonly derivedConfig: DerivedEventsConfig;
+  /** Estado acumulado de los eventos derivados. Se resetea en cada `start()`. */
+  private derivedState: DerivedEventsState = createInitialState();
 
   private video: HTMLVideoElement | null = null;
   private stream: MediaStream | null = null;
@@ -59,6 +76,18 @@ export class Karada {
       camera: options.camera ?? 'user',
       mirror: options.mirror ?? true,
       maxFPS: options.maxFPS ?? 0,
+    };
+
+    // Resolución de los parámetros de eventos derivados. Clamp silencioso en
+    // Fase 2.A (D41/D42); en Fase 2.B pasará a throw 'invalid-options' (D50).
+    const events = options.events;
+    this.derivedConfig = {
+      // TODO(2.B): reemplazar clamp por throw invalid-options
+      personLostDebounceMs: clamp(events?.personLostDebounceMs, 500, 300, 600),
+      // TODO(2.B): reemplazar clamp por throw invalid-options
+      handAppearedFrames: clamp(events?.handAppearedFrames, 2, 1, 5),
+      // TODO(2.B): reemplazar clamp por throw invalid-options
+      handLostDebounceMs: clamp(events?.handLostDebounceMs, 300, 100, 1000),
     };
   }
 
@@ -92,6 +121,10 @@ export class Karada {
   async start(): Promise<void> {
     if (this.running) return;
 
+    // Sesión nueva: se olvida todo el estado de eventos derivados para que un
+    // `start` tras un `stop` no arrastre `personPresent`/timestamps viejos.
+    this.derivedState = createInitialState();
+
     try {
       // Precheck de capacidades del entorno (D34). Sin getUserMedia ni
       // WebAssembly no hay nada que intentar: fallamos rápido y tipado.
@@ -122,7 +155,7 @@ export class Karada {
 
       window.addEventListener('beforeunload', this.onBeforeUnload);
       this.running = true;
-      this.emitter.emit('ready', undefined);
+      this.emitter.emit('ready');
 
       this.stopLoop = startLoop(video, (timestampMicros) => this.onTick(timestampMicros));
     } catch (err) {
@@ -135,19 +168,41 @@ export class Karada {
     }
   }
 
-  /** Apaga todo, libera cámara y memoria, y olvida el último frame. */
+  /**
+   * Apaga todo, libera cámara y memoria, y olvida el último frame. `stop()` es
+   * un cierre abrupto por diseño: NO emite eventos derivados finales sintéticos
+   * (nada de `personLost` "al parar"). El consumidor sabe que llamó `stop`.
+   */
   stop(): void {
     this.cleanup();
     this.lastFrame = null;
+    // Consistente con `lastFrame = null`: tras `stop` no hay persona ni historia.
+    this.derivedState = createInitialState();
   }
 
   /**
    * Devuelve el esqueleto más reciente (síncrono). Puede quedar "stale" (el
    * último válido) mientras no hay persona; el estado real "sin persona" se
-   * cubrirá en Fase 2 con `personLost`.
+   * consulta con `isPresent()` o se escucha con `personLost` (D30, D44).
    */
   getFrame(): Skeleton | null {
     return this.lastFrame;
+  }
+
+  /**
+   * Indica si hay persona detectada en el frame actual. No aplica el
+   * comportamiento "stale" de `getFrame()`: refleja la verdad del momento (D44).
+   */
+  isPresent(): boolean {
+    return this.derivedState.personPresent;
+  }
+
+  /**
+   * Timestamp (`performance.now`) del último frame válido con persona detectada.
+   * Devuelve `-1` si nunca se detectó persona en esta sesión (D44).
+   */
+  getLastSeen(): number {
+    return this.derivedState.lastValidSkeletonTimestamp;
   }
 
   // -------------------------------------------------------------------------
@@ -176,11 +231,63 @@ export class Karada {
       return;
     }
 
-    // D21: solo se emite `frame` cuando hay Skeleton real. `null` no se emite;
-    // `lastFrame` conserva el último válido.
+    // Los debounces de eventos derivados se miden en tiempo real (D41/D42), con
+    // `performance.now()` —no con el `mediaTime` del video—.
+    this.ingest(skeleton, performance.now());
+  }
+
+  /**
+   * @internal
+   * Procesa un `Skeleton | null` ya construido: emite los eventos derivados
+   * (Fase 2.A) y luego `frame`, respetando el orden "estado antes que datos"
+   * (D45). Está separado de `onTick` —y expuesto como `@internal`— para poder
+   * testear la lógica de eventos de forma determinista sin cámara. Se elide de
+   * los `.d.ts` por `stripInternal`; no es API pública.
+   */
+  ingest(skeleton: Skeleton | null, now: number): void {
+    // `lastFrame` conserva el último válido (stale, D30); `null` no lo pisa.
     if (skeleton !== null) {
       this.lastFrame = skeleton;
+    }
+
+    // 1) Eventos de estado derivados, en el orden que decide el algoritmo.
+    const { emissions, nextState } = processTick(
+      skeleton,
+      now,
+      this.derivedState,
+      this.derivedConfig,
+    );
+    this.derivedState = nextState;
+    for (const emission of emissions) this.emitDerived(emission);
+
+    // 2) `frame` DESPUÉS de los eventos de estado (D45). D21: solo con Skeleton
+    //    real; `null` no se emite.
+    if (skeleton !== null) {
       this.emitter.emit('frame', skeleton);
+    }
+  }
+
+  /** Traduce una emisión derivada a la llamada tipada del emitter (D43). */
+  private emitDerived(emission: DerivedEmission): void {
+    switch (emission.type) {
+      case 'personDetected':
+        this.emitter.emit('personDetected', emission.skeleton);
+        break;
+      case 'personLost':
+        this.emitter.emit('personLost', {
+          lastSkeleton: emission.lastSkeleton,
+          timestamp: emission.timestamp,
+        });
+        break;
+      case 'handAppeared':
+        this.emitter.emit('handAppeared', emission.side, emission.hand);
+        break;
+      case 'handLost':
+        this.emitter.emit('handLost', emission.side, {
+          lastPosition: emission.lastPosition,
+          timestamp: emission.timestamp,
+        });
+        break;
     }
   }
 

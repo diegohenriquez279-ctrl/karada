@@ -2,11 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { TypedEventEmitter } from '../../src/core/events';
 
-// Mapa de eventos de prueba para ejercitar el tipado genérico.
+// Mapa de eventos de prueba para ejercitar el tipado genérico. Cada evento se
+// declara como una tupla de argumentos (la tupla vacía = sin datos).
 type TestEvents = {
-  ping: void;
-  data: { value: number };
-  side: 'left' | 'right';
+  ping: [];
+  data: [{ value: number }];
+  side: ['left' | 'right'];
+  pair: ['left' | 'right', number];
 };
 
 describe('TypedEventEmitter', () => {
@@ -21,12 +23,23 @@ describe('TypedEventEmitter', () => {
     expect(listener).toHaveBeenCalledWith({ value: 42 });
   });
 
+  it('emit soporta eventos con múltiples argumentos (discriminador primero)', () => {
+    const emitter = new TypedEventEmitter<TestEvents>();
+    const listener = vi.fn();
+
+    emitter.on('pair', listener);
+    emitter.emit('pair', 'right', 7);
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    expect(listener).toHaveBeenCalledWith('right', 7);
+  });
+
   it('emit devuelve false si no hay listeners y true si los hay', () => {
     const emitter = new TypedEventEmitter<TestEvents>();
-    expect(emitter.emit('ping', undefined)).toBe(false);
+    expect(emitter.emit('ping')).toBe(false);
 
     emitter.on('ping', () => {});
-    expect(emitter.emit('ping', undefined)).toBe(true);
+    expect(emitter.emit('ping')).toBe(true);
   });
 
   it('off remueve solo el listener indicado, no los demás', () => {
@@ -70,7 +83,7 @@ describe('TypedEventEmitter', () => {
     emitter.on('ping', first);
     emitter.on('ping', second);
 
-    expect(() => emitter.emit('ping', undefined)).not.toThrow();
+    expect(() => emitter.emit('ping')).not.toThrow();
     expect(first).toHaveBeenCalledTimes(1);
     expect(second).toHaveBeenCalledTimes(1);
   });
