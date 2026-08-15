@@ -273,6 +273,31 @@ Tras stop(): isPresent() retorna false, getLastSeen() retorna -1.
 No emite eventos sintéticos (nada de personLost al parar). stop() sigue siendo cierre abrupto por diseño.
 El reset en start() se mantiene como red de seguridad idempotente: si en el futuro se llega a un Karada sin stop() previo (por ejemplo, error a mitad de init), el arranque no arrastra estado.
 
+## Decisiones tomadas durante la implementación de 2.B (D57–D59)
+
+### D57. Modelo de estado explícito reemplaza el boolean `running`
+
+El ciclo de vida se formalizó como union `'idle' | 'starting' | 'running' | 'paused' | 'stopped'` en la clase `Karada`, sustituyendo el `private running: boolean` de 1.B. Las transiciones se validan en `start`/`pause`/`resume`; `cleanup()` ya no fija estado (lo hace el llamador: `stop()` → `'stopped'`, catch de `start()` → `'idle'` para permitir reintento tras fallo).
+
+**Cambio observable respecto a 1.C:** `start()` sobre una sesión activa (`'starting'`, `'running'` o `'paused'`) pasó de no-op silencioso a `throw KaradaError('invalid-state')`. No rompe consumidores legítimos — solo cierra la puerta a dobles arranques accidentales que antes se ignoraban silenciosamente. Consistente con la política de D50 de exponer `'invalid-state'` para operaciones en estado incorrecto.
+
+Retrofit relacionado: la validación de `maxFPS` (D47) se aplicó también en el constructor, no solo en `setMaxFPS()`. `new Karada({ maxFPS: 200 })` ahora lanza `'invalid-options'` en vez de aceptarlo silenciosamente como hacía 1.B (D40).
+
+### D58. Congelamiento del reloj vía `clockOffset` en la clase, no en el núcleo
+
+En vez de manipular el `DerivedEventState` durante `pause`/`resume`, la clase mantiene un `clockOffset` privado. `pause()` guarda `pauseWallClock = performance.now()`; `resume()` hace `clockOffset += performance.now() - pauseWallClock`; `ingest()` pasa `now - clockOffset` a `processTick`.
+
+Efecto neto: para `derived-events.ts` el tiempo "no avanzó" durante la pausa. Los debounces de `personLost`/`handLost` siguen midiendo desde donde quedaron. El núcleo agnóstico queda intacto y sigue recibiendo un `now` monótono, respetando D55 (reloj inyectado como argumento) y D56 (`stop()` resetea el estado derivado, y aquí también `clockOffset = 0`).
+
+Interacción con `maxFPS`: el throttle se resetea en `resume()` (`lastEmitTime = 0`) para que el primer frame post-resume no se compare contra un timestamp pre-pausa.
+
+### D59. Seams `@internal` `pauseAt(now)` / `resumeAt(now)` para testeo determinista
+
+Siguiendo el patrón de `ingest(skeleton, now)` (D55) y `getVideoElement()` (D39): los públicos `pause()`/`resume()` delegan en variantes `@internal` con el reloj inyectado. Elididas del `.d.ts` público por `stripInternal`.
+
+Razón: permite verificar el congelamiento del debounce de forma 100% determinista sin `vi.useFakeTimers` ni mockear `performance.now` globalmente. Los tests de lifecycle inyectan un reloj controlado y afirman comportamiento exacto: si a `personLost` le faltaban 200 ms al pausar, tras 300 ms de pausa y 199 ms post-resume aún no dispara, y al ms siguiente sí.
+
+Verificado en `dist/index.d.ts`: la superficie pública solo expone `setMaxFPS`, `pause`, `resume`, `isSupported`, `checkPermission`. Los seams `pauseAt`/`resumeAt`/`ingest`/`getVideoElement` no aparecen.
 
 ## Sobre este documento
 
